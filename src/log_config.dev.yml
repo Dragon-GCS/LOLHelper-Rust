@@ -1,0 +1,22 @@
+appenders:
+  console:
+    kind: console
+    encoder:
+      pattern: "{h({d(%Y-%m-%d %H:%M:%S.%f)(local):.23})} | {h({l}):>5} | {M}:{L} - {m}{n}"
+  file:
+    kind: file
+    path: log/debug.log
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S.%f)(local)} | {l:>5} | {M}:{L} - {m}{n}"
+
+root:
+  level: INFO
+  appenders:
+  - console
+
+loggers:
+  lol_helper::lcu::handler:
+    level: TRACE
+    appenders:
+    - file
+    additive: false
