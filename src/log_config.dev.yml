@@ -9,14 +9,13 @@ appenders:
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S.%f)(local)} | {l:>5} | {M}:{L} - {m}{n}"
 
-root:
-  level: INFO
-  appenders:
-  - console
-
 loggers:
+  lol_helper:
+    level: DEBUG
+    appenders:
+    - console
+
   lol_helper::lcu::handler:
     level: TRACE
     appenders:
     - file
-    additive: false

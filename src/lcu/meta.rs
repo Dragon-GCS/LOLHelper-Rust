@@ -1,4 +1,4 @@
-use log::{error, info, trace};
+use log::{debug, error, info};
 use std::ffi::{OsString, c_void};
 use std::os::windows::ffi::OsStringExt;
 use std::process::Command;
@@ -76,7 +76,7 @@ impl LcuMeta {
             .next()
             .ok_or("未找到进程PID")
             .map_err(|_| HelperError::ClientNotFound)?;
-        trace!("客户端进程ID: {}", self.pid);
+        debug!("客户端进程ID: {}", self.pid);
         let cmdline = unsafe {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, self.pid)
                 .map_err(|_| HelperError::ClientNotFound)?;
@@ -118,7 +118,7 @@ impl LcuMeta {
             // 这里的命令行参数是utf-16编码的，需要转换成utf-8
             os_string.to_string_lossy().to_string()
         };
-        trace!("客户端命令行参数: {}", cmdline);
+        debug!("客户端命令行参数: {}", cmdline);
 
         for arg in cmdline.split_whitespace() {
             let arg = arg.trim_matches('"');

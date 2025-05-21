@@ -6,6 +6,7 @@ use reqwest_websocket::{Message, RequestBuilderExt};
 
 use super::event::SUBSCRIBED_EVENT;
 use super::{LcuMeta, handler::EventHandler};
+use crate::context::HelperContext;
 use crate::errors::HelperError;
 
 pub struct LcuClient {
@@ -36,7 +37,7 @@ impl LcuClient {
         Ok(())
     }
 
-    pub async fn start_listener(&mut self) -> anyhow::Result<()> {
+    pub async fn start_listener(&mut self, ctx: Arc<HelperContext>) -> anyhow::Result<()> {
         self.load_meta().await?;
 
         let url = self
@@ -64,11 +65,19 @@ impl LcuClient {
         }
 
         let handler = Arc::new(EventHandler::new(url, self.client.clone()));
+        {
+            let handler = handler.clone();
+            let ctx = ctx.clone();
+            tokio::spawn(async move {
+                handler.update_summoner_info(ctx).await;
+            });
+        }
         while let Some(message) = ws.try_next().await? {
             if let Message::Text(text) = message {
                 let handler = handler.clone();
+                let ctx = ctx.clone();
                 tokio::spawn(async move {
-                    handler.handle_message(&text).await;
+                    handler.handle_message(&text, ctx).await;
                 });
             }
         }
@@ -79,6 +88,8 @@ impl LcuClient {
 #[tokio::test]
 async fn test_port_and_token() -> anyhow::Result<()> {
     let mut client = LcuClient::new();
-    client.start_listener().await?;
+    client
+        .start_listener(Arc::new(HelperContext::default()))
+        .await?;
     Ok(())
 }

@@ -4,7 +4,8 @@ appenders:
     encoder:
       pattern: "{h({d(%Y-%m-%d %H:%M:%S.%f)(local):.23})} | {h({l}):>5} | {M}:{L} - {m}{n}"
 
-root:
-  level: INFO
-  appenders:
-  - console
+loggers:
+  lol_helper:
+    level: INFO
+    appenders:
+    - console

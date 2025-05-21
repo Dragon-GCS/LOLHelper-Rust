@@ -1,8 +1,7 @@
 use serde::{Deserialize, Deserializer};
 
-pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
+pub(crate) const SUBSCRIBED_EVENT: [&str; 4] = [
     "lol-gameflow_v1_session",
-    "lol-chat_v1_me",
     "lol-matchmaking_v1_ready-check",
     "lol-lobby-team-builder_v1_matchmaking",
     "lol-champ-select_v1_session",
@@ -22,15 +21,17 @@ pub enum EventType {
     Create,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize, PartialEq)]
 pub enum GamePhase {
-    InProgress,
     ChampSelect,
     GameStart,
-    ReadyCheck,
-    PreEndOfGame,
+    InProgress,
     Lobby,
+    Matchmaking,
+    #[default]
     None,
+    PreEndOfGame,
+    ReadyCheck,
     #[serde(other)]
     Other,
 }
@@ -43,12 +44,6 @@ pub enum Event {
         #[serde(rename = "eventType")]
         event_type: EventType,
         data: GameFlowSession,
-    },
-    #[serde(rename = "/lol-chat/v1/me")]
-    ChatMe {
-        #[serde(rename = "eventType")]
-        event_type: EventType,
-        data: Me,
     },
     #[serde(rename = "/lol-matchmaking/v1/ready-check")]
     MatchmakingReadyCheck {
@@ -109,15 +104,6 @@ pub struct GameFlowGameData {
     pub game_id: u64,
     pub team_one: Vec<ChampSelectPlayer>,
     pub team_two: Vec<ChampSelectPlayer>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Me {
-    #[serde(rename = "gameName")]
-    pub game_name: String,
-    #[serde(rename = "summonerId")]
-    pub summoner_id: u64,
-    pub puuid: String,
 }
 
 #[derive(Debug, Deserialize)]
