@@ -1,0 +1,25 @@
+[appenders.console]
+kind = "console"
+encoder = { pattern = "{h({d(%Y-%m-%d %H:%M:%S.%f)(local):.23})} | {h({l}):>5} | {M}:{L} - {m}{n}" }
+
+[appenders.file]
+kind = "file"
+path = "log/debug.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S.%f)(local)} | {l:>5} | {M}:{L} - {m}{n}" }
+
+[appenders.ui_log]
+kind = "ui_logs"
+max_size = 1024
+
+[loggers.lcu_client]
+level = "TRACE"
+appenders = ["console", "ui_log"]
+
+# add for test
+[loggers."lcu_client::log"]
+level = "WARN"
+appenders = ["ui_log"]
+
+[loggers."lcu_client::lcu::handler"]
+level = "TRACE"
+appenders = ["file"]

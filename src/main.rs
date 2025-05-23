@@ -1,6 +1,7 @@
 mod context;
 mod errors;
 mod lcu;
+mod log;
 
 use eframe::{
     App,
@@ -8,7 +9,7 @@ use eframe::{
 };
 
 use lcu::LcuClient;
-use log4rs::init_file;
+use log::init_logger;
 use std::sync::Arc;
 
 struct MyApp {
@@ -51,12 +52,7 @@ impl App for MyApp {
 }
 
 fn main() -> anyhow::Result<()> {
-    #[cfg(debug_assertions)]
-    let log_file = "src/log_config.dev.yml";
-    #[cfg(not(debug_assertions))]
-    let log_file = "src/log_config.yml";
-    init_file(log_file, Default::default())
-        .map_err(|e| anyhow::anyhow!("Failed to init log file: {}", e))?;
+    init_logger();
     eframe::run_native(
         "My Egui App",
         eframe::NativeOptions::default(),
