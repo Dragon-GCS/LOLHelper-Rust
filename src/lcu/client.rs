@@ -8,38 +8,26 @@ use super::event::SUBSCRIBED_EVENT;
 use super::{LcuMeta, handler::EventHandler};
 use crate::context::HelperContext;
 use crate::errors::HelperError;
+use log::info;
 
 pub struct LcuClient {
     client: Arc<reqwest::Client>,
     meta: LcuMeta,
 }
 
-impl Default for LcuClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 impl LcuClient {
-    pub fn new() -> Self {
+    pub fn new() -> anyhow::Result<Self> {
         let client = Arc::new(
             reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()
                 .unwrap(),
         );
-        let meta = LcuMeta::default();
-
-        LcuClient { client, meta }
+        let mut meta = LcuMeta::new()?;
+        Ok(LcuClient { client, meta })
     }
 
-    pub async fn load_meta(&mut self) -> anyhow::Result<()> {
-        self.meta.refresh_meta()?;
-        Ok(())
-    }
-
-    pub async fn start_listener(&mut self, ctx: Arc<HelperContext>) -> anyhow::Result<()> {
-        self.load_meta().await?;
-
+    pub async fn start_listener(&self, ctx: Arc<HelperContext>) -> anyhow::Result<()> {
         let url = self
             .meta
             .host_url
@@ -59,7 +47,7 @@ impl LcuClient {
             .await?;
         #[cfg(not(debug_assertions))]
         for event in SUBSCRIBED_EVENT {
-            println!("subscribed event: {event}");
+            info!("subscribed event: {event}");
             ws.send(Message::Text(format!("[5, \"OnJsonApiEvent_{event}\"]")))
                 .await?;
         }
@@ -87,7 +75,7 @@ impl LcuClient {
 
 #[tokio::test]
 async fn test_port_and_token() -> anyhow::Result<()> {
-    let mut client = LcuClient::new();
+    let client = LcuClient::new()?;
     client
         .start_listener(Arc::new(HelperContext::default()))
         .await?;

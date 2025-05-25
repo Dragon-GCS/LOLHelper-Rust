@@ -21,7 +21,7 @@ pub enum EventType {
     Create,
 }
 
-#[derive(Default, Debug, Deserialize, PartialEq)]
+#[derive(Default, Debug, Deserialize, PartialEq, Eq, Clone)]
 pub enum GamePhase {
     ChampSelect,
     GameStart,

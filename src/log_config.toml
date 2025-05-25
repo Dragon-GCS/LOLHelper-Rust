@@ -6,6 +6,6 @@ encoder = { pattern = "{h({d(%Y-%m-%d %H:%M:%S.%f)(local):.23})} | {h({l}):>5} |
 kind = "ui_logs"
 max_size = 10240
 
-[loggers.lol_helper]
+[loggers.lcu_client]
 level = "INFO"
-appenders = ["console, ui_log"]
+appenders = ["console", "ui_log"]

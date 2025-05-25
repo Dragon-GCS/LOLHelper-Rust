@@ -4,6 +4,7 @@ use crate::{
     lcu::event::GamePhase,
 };
 use log::{error, info};
+use reqwest::RequestBuilder;
 use std::sync::Arc;
 
 pub(super) struct EventHandler {
@@ -19,6 +20,15 @@ impl EventHandler {
         }
     }
 
+    fn get(&self, uri: &str) -> RequestBuilder {
+        self.client.get(format!("https://{}{}", self.host_url, uri))
+    }
+
+    fn post(&self, uri: &str) -> RequestBuilder {
+        self.client
+            .post(format!("https://{}{}", self.host_url, uri))
+    }
+
     pub async fn handle_message(&self, message: &str, ctx: Arc<HelperContext>) {
         if message.is_empty() {
             return;
@@ -26,9 +36,10 @@ impl EventHandler {
 
         let event = serde_json::from_str::<EventMessage>(message);
         if event.is_err() {
-            // error!("Unexpected event({e}): {message}.");
+            error!("Unexpected event: {message}.");
             return;
         }
+
         match event.unwrap().2 {
             Event::GameFlowSession {
                 event_type: _,
@@ -75,15 +86,16 @@ impl EventHandler {
                 event_type: _,
                 data,
             } => {
-                let bench_champions = data.bench_champions;
-                info!("ChampSelect：{bench_champions:?}");
+                info!(
+                    "ChampSelect：{:?}\nMy team: {:?}",
+                    data.bench_champions, data.my_team
+                );
             }
         }
     }
 
     pub async fn update_summoner_info(&self, ctx: Arc<HelperContext>) {
-        let url = format!("https://{}{}", self.host_url, LcuUri::ME);
-        match self.client.get(url).send().await {
+        match self.get(LcuUri::ME).send().await {
             Ok(response) => {
                 let data = response.json::<Me>().await;
                 if let Err(e) = &data {
@@ -105,8 +117,7 @@ impl EventHandler {
             return;
         }
 
-        let url = format!("https://{}{}", self.host_url, LcuUri::ACCEPT_GAME);
-        match self.client.post(url).send().await {
+        match self.post(LcuUri::ACCEPT_GAME).send().await {
             Ok(r) => {
                 if !r.status().is_success() {
                     error!("自动接受准备检查失败: {}", r.text().await.unwrap());
