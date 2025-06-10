@@ -1,18 +1,21 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 
-use futures_util::{TryStreamExt, sink::SinkExt};
-use reqwest_websocket;
-use reqwest_websocket::{Message, RequestBuilderExt};
+use super::{Event, LcuUri, event::EventMessage};
+use crate::{
+    context::{HelperContext, Me},
+    lcu::event::GamePhase,
+};
+#[cfg(debug_assertions)]
+use log::debug;
+use log::{error, info};
+use reqwest::RequestBuilder;
 
-use super::event::SUBSCRIBED_EVENT;
-use super::{LcuMeta, handler::EventHandler};
-use crate::context::HelperContext;
-use crate::errors::HelperError;
-use log::info;
+use super::LcuMeta;
 
 pub struct LcuClient {
-    client: Arc<reqwest::Client>,
-    meta: LcuMeta,
+    pub client: Arc<reqwest::Client>,
+    pub meta: LcuMeta,
 }
 
 impl LcuClient {
@@ -23,61 +26,125 @@ impl LcuClient {
                 .build()
                 .unwrap(),
         );
-        let mut meta = LcuMeta::new()?;
+        let meta = LcuMeta::new()?;
         Ok(LcuClient { client, meta })
     }
 
-    pub async fn start_listener(&self, ctx: Arc<HelperContext>) -> anyhow::Result<()> {
-        let url = self
-            .meta
-            .host_url
-            .as_ref()
-            .ok_or(HelperError::ClientCMDLineFailed)?;
+    pub fn host_url(&self) -> &str {
+        self.meta.host_url.as_ref().unwrap()
+    }
 
-        let response = self
-            .client
-            .get(format!("wss://{url}"))
-            .upgrade()
-            .send()
-            .await?;
+    fn get(&self, api: &str) -> RequestBuilder {
+        let url = self.host_url();
+        self.client.get(format!("https://{url}{api}"))
+    }
 
-        let mut ws = response.into_websocket().await?;
-        #[cfg(debug_assertions)]
-        ws.send(Message::Text("[5, \"OnJsonApiEvent\"]".into()))
-            .await?;
-        #[cfg(not(debug_assertions))]
-        for event in SUBSCRIBED_EVENT {
-            info!("subscribed event: {event}");
-            ws.send(Message::Text(format!("[5, \"OnJsonApiEvent_{event}\"]")))
-                .await?;
+    fn post(&self, uri: &str) -> RequestBuilder {
+        let url = self.host_url();
+        self.client.post(format!("https://{url}{uri}"))
+    }
+
+    pub async fn handle_message(&self, message: &str, ctx: Arc<HelperContext>) {
+        if message.is_empty() {
+            return;
         }
 
-        let handler = Arc::new(EventHandler::new(url, self.client.clone()));
-        {
-            let handler = handler.clone();
-            let ctx = ctx.clone();
-            tokio::spawn(async move {
-                handler.update_summoner_info(ctx).await;
-            });
-        }
-        while let Some(message) = ws.try_next().await? {
-            if let Message::Text(text) = message {
-                let handler = handler.clone();
-                let ctx = ctx.clone();
-                tokio::spawn(async move {
-                    handler.handle_message(&text, ctx).await;
-                });
+        let event = serde_json::from_str::<EventMessage>(message);
+
+        match event.unwrap().2 {
+            Event::GameFlowSession {
+                event_type: _,
+                data,
+            } => {
+                #[cfg(feature = "debug_events")]
+                if let GamePhase::Other = data.phase {
+                    debug!("Unknown GamePhase: {message}")
+                }
+                {
+                    let current_phase = ctx.game_phase.read().unwrap();
+                    let accepted = ctx.accepted.read().unwrap();
+                    if *accepted && *current_phase != GamePhase::ReadyCheck {
+                        *ctx.accepted.write().unwrap() = false;
+                    }
+                    if matches!(*current_phase, GamePhase::Lobby | GamePhase::None)
+                        && *current_phase == data.phase
+                    {
+                        return;
+                    }
+                }
+                info!(
+                    "当前游戏状态{:?}\n己方队伍：{:?}\n地方队伍{:?}",
+                    data.phase, &data.game_data.team_one, &data.game_data.team_two
+                );
+                *ctx.game_phase.write().unwrap() = data.phase;
+            }
+            Event::MatchmakingReadyCheck {
+                event_type: _,
+                data,
+            } => {
+                if data.is_some() && !*ctx.accepted.read().unwrap() {
+                    self.auto_accept(ctx).await;
+                    info!("ReadyCheck：{data:?}");
+                }
+            }
+            Event::LobbyTeamBuilderMatchmaking {
+                event_type: _,
+                data,
+            } => {
+                info!("MatchMaking：{data:?}");
+            }
+            Event::ChampSelectSession {
+                event_type: _,
+                data,
+            } => {
+                info!(
+                    "ChampSelect：{:?}\nMy team: {:?}",
+                    data.bench_champions, data.my_team
+                );
+            }
+            #[cfg(debug_assertions)]
+            Event::Other(_event) => {
+                #[cfg(feature = "debug_events")]
+                debug!("Received an unhandled event: {_event}");
             }
         }
-        Ok(())
     }
-}
 
-#[tokio::test]
-async fn test_port_and_token() -> anyhow::Result<()> {
-    let client = LcuClient::new()?;
-    client
-        .start_listener(Arc::new(HelperContext::default()))
-        .await?;
-    Ok(())
+    pub async fn update_summoner_info(&self, ctx: Arc<HelperContext>) {
+        match self.get(LcuUri::ME).send().await {
+            Ok(response) => {
+                let data = response.json::<Me>().await;
+                if let Err(e) = &data {
+                    error!("Failed to parse summoner info: {e}");
+                    return;
+                }
+                let mut info = ctx.me.write().unwrap();
+                *info = data.unwrap();
+                info!("当前玩家信息: {info:?}");
+            }
+            Err(e) => {
+                error!("Failed to get summoner info: {e}");
+            }
+        }
+    }
+
+    async fn auto_accept(&self, ctx: Arc<HelperContext>) {
+        if *ctx.accepted.read().unwrap() {
+            return;
+        }
+
+        match self.post(LcuUri::ACCEPT_GAME).send().await {
+            Ok(r) => {
+                if !r.status().is_success() {
+                    error!("自动接受准备检查失败: {}", r.text().await.unwrap());
+                    return;
+                }
+                *ctx.accepted.write().unwrap() = true;
+                info!("自动接受对局");
+            }
+            Err(e) => {
+                error!("Failed to auto accept: {e}");
+            }
+        }
+    }
 }

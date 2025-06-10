@@ -1,5 +1,8 @@
 use serde::{Deserialize, Deserializer};
+#[cfg(debug_assertions)]
+use serde_json::Value;
 
+#[cfg(not(debug_assertions))]
 pub(crate) const SUBSCRIBED_EVENT: [&str; 4] = [
     "lol-gameflow_v1_session",
     "lol-matchmaking_v1_ready-check",
@@ -63,6 +66,9 @@ pub enum Event {
         event_type: EventType,
         data: ChampSelectData,
     },
+    #[cfg(debug_assertions)]
+    #[serde(untagged)]
+    Other(Value),
 }
 
 #[derive(Debug, Deserialize)]

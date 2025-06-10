@@ -37,3 +37,7 @@ BetterKiller 狐狸
 丶回忆是一玩具 日女
 龙癌少年 锤石
 一丝男人毒 杰斯
+
+当前游戏状态ChampSelect
+当前游戏状态GameStart
+当前游戏状态InProgress
