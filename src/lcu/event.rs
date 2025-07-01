@@ -45,25 +45,25 @@ pub enum Event {
     #[serde(rename = "/lol-gameflow/v1/session")]
     GameFlowSession {
         #[serde(rename = "eventType")]
-        event_type: EventType,
+        _event_type: EventType,
         data: GameFlowSession,
     },
     #[serde(rename = "/lol-matchmaking/v1/ready-check")]
     MatchmakingReadyCheck {
         #[serde(rename = "eventType")]
-        event_type: EventType,
+        _event_type: EventType,
         data: Option<MatchMakingReadyCheck>,
     },
     #[serde(rename = "/lol-lobby-team-builder/v1/matchmaking")]
     LobbyTeamBuilderMatchmaking {
         #[serde(rename = "eventType")]
-        event_type: EventType,
+        _event_type: EventType,
         data: Option<MatchMaking>,
     },
     #[serde(rename = "/lol-champ-select/v1/session")]
     ChampSelectSession {
         #[serde(rename = "eventType")]
-        event_type: EventType,
+        _event_type: EventType,
         data: ChampSelectData,
     },
     #[cfg(debug_assertions)]

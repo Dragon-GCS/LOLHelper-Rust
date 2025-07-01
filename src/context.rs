@@ -1,6 +1,7 @@
 use crate::lcu::GamePhase;
 
 use super::lcu::ChampSelectPlayer;
+use log::debug;
 use serde::Deserialize;
 use std::{collections::HashMap, sync::RwLock};
 
@@ -17,15 +18,26 @@ pub struct Me {
 
 #[derive(Debug, Default)]
 pub struct AutoPick {
-    pub selected: HashMap<u16, String>,
-    pub unselected: HashMap<u16, String>,
+    // champion_id: pority
+    pub selected: HashMap<u16, u16>,
+    pub unselected: HashMap<u16, u16>,
 }
 
 #[derive(Debug, Default)]
 pub struct HelperContext {
     pub me: RwLock<Me>,
+    pub champions: RwLock<HashMap<u16, String>>,
+    pub champion_id: RwLock<u16>,
     pub my_team: RwLock<Vec<ChampSelectPlayer>>,
     pub auto_pick: RwLock<AutoPick>,
     pub game_phase: RwLock<GamePhase>,
     pub accepted: RwLock<bool>,
+}
+
+impl HelperContext {
+    pub fn reset(&self) {
+        *self.champion_id.write().unwrap() = 0;
+        (*self.my_team.write().unwrap()).clear();
+        debug!("HelperContext reset");
+    }
 }

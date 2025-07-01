@@ -6,9 +6,11 @@ use crate::{
     context::{HelperContext, Me},
     lcu::event::GamePhase,
 };
-#[cfg(debug_assertions)]
+
+#[cfg(all(debug_assertions, feature = "debug_events"))]
 use log::debug;
 use log::{error, info};
+
 use reqwest::RequestBuilder;
 
 use super::LcuMeta;
@@ -53,33 +55,33 @@ impl LcuClient {
 
         match event.unwrap().2 {
             Event::GameFlowSession {
-                event_type: _,
+                _event_type: _,
                 data,
             } => {
-                #[cfg(feature = "debug_events")]
+                #[cfg(all(debug_assertions, feature = "debug_events"))]
                 if let GamePhase::Other = data.phase {
                     debug!("Unknown GamePhase: {message}")
                 }
                 {
+                    // Use block to ensure we don't hold the lock for too long
                     let current_phase = ctx.game_phase.read().unwrap();
                     let accepted = ctx.accepted.read().unwrap();
                     if *accepted && *current_phase != GamePhase::ReadyCheck {
                         *ctx.accepted.write().unwrap() = false;
                     }
-                    if matches!(*current_phase, GamePhase::Lobby | GamePhase::None)
-                        && *current_phase == data.phase
-                    {
-                        return;
+                    if matches!(*current_phase, GamePhase::Lobby | GamePhase::None) {
+                        if *current_phase == data.phase {
+                            return;
+                        } else {
+                            ctx.reset();
+                        }
                     }
                 }
-                info!(
-                    "当前游戏状态{:?}\n己方队伍：{:?}\n地方队伍{:?}",
-                    data.phase, &data.game_data.team_one, &data.game_data.team_two
-                );
+                info!("当前游戏状态{:?}", data.phase);
                 *ctx.game_phase.write().unwrap() = data.phase;
             }
             Event::MatchmakingReadyCheck {
-                event_type: _,
+                _event_type: _,
                 data,
             } => {
                 if data.is_some() && !*ctx.accepted.read().unwrap() {
@@ -88,19 +90,20 @@ impl LcuClient {
                 }
             }
             Event::LobbyTeamBuilderMatchmaking {
-                event_type: _,
+                _event_type: _,
                 data,
             } => {
                 info!("MatchMaking：{data:?}");
             }
             Event::ChampSelectSession {
-                event_type: _,
+                _event_type: _,
                 data,
             } => {
                 info!(
                     "ChampSelect：{:?}\nMy team: {:?}",
                     data.bench_champions, data.my_team
                 );
+                self.auto_select(ctx, data.bench_champions).await;
             }
             #[cfg(debug_assertions)]
             Event::Other(_event) => {
@@ -124,6 +127,50 @@ impl LcuClient {
             }
             Err(e) => {
                 error!("Failed to get summoner info: {e}");
+            }
+        }
+    }
+
+    async fn auto_select(&self, ctx: Arc<HelperContext>, bench_champions: Vec<u16>) {
+        if bench_champions.is_empty() {
+            return;
+        }
+        let select_champion = {
+            let selected = &ctx.auto_pick.read().unwrap().selected;
+            let priority_champion = bench_champions
+                .iter()
+                .filter(|&champion| selected.contains_key(champion))
+                .max_by_key(|&champion| selected[champion]);
+
+            let champion_id = ctx.champion_id.read().unwrap();
+            // 可选英雄中没有自动选择的英雄
+            // 当前英雄优先级大于自动选择的英雄
+            if priority_champion.is_none()
+                || selected
+                    .get(&*champion_id)
+                    .map(|&current_priority| {
+                        current_priority > selected[priority_champion.unwrap()]
+                    })
+                    .unwrap_or(false)
+            {
+                return;
+            }
+            priority_champion.unwrap()
+        };
+
+        match self
+            .post(&LcuUri::swap_champion(*select_champion))
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => {
+                info!("自动选择英雄: {select_champion}");
+            }
+            Ok(r) => {
+                error!("选择英雄响应异常: {}", r.text().await.unwrap());
+            }
+            Err(e) => {
+                error!("选择英雄请求失败: {e}");
             }
         }
     }

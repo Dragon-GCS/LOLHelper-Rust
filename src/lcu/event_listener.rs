@@ -42,9 +42,9 @@ pub async fn start_event_listener(
         if let Message::Text(text) = message {
             let handler = lcu.clone();
             let ctx = ctx.clone();
-            tokio::spawn(async move {
-                handler.handle_message(&text, ctx).await;
-            });
+            // tokio::spawn(async move {
+            handler.handle_message(&text, ctx).await;
+            // });
         }
     }
     Ok(())
