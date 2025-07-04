@@ -1,13 +1,14 @@
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::Error};
 #[cfg(debug_assertions)]
 use serde_json::Value;
 
 #[cfg(not(debug_assertions))]
-pub(crate) const SUBSCRIBED_EVENT: [&str; 4] = [
+pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
     "lol-gameflow_v1_session",
     "lol-matchmaking_v1_ready-check",
     "lol-lobby-team-builder_v1_matchmaking",
     "lol-champ-select_v1_session",
+    "lol-chat_v1_conversations",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -66,6 +67,10 @@ pub enum Event {
         _event_type: EventType,
         data: ChampSelectData,
     },
+    #[serde(deserialize_with = "chat_conversation_deserializer")]
+    #[serde(untagged)]
+    ChatConversation(ChatConversation),
+
     #[cfg(debug_assertions)]
     #[serde(untagged)]
     Other(Value),
@@ -76,10 +81,8 @@ pub enum Event {
 pub struct ChampSelectData {
     #[serde(deserialize_with = "deserialize_champion_ids")]
     pub bench_champions: Vec<u16>,
-    #[serde(rename = "benchEnabled")]
     pub bench_enabled: bool,
     pub id: String,
-    #[serde(rename = "myTeam")]
     pub my_team: Vec<ChampSelectPlayer>,
 }
 
@@ -87,12 +90,9 @@ pub struct ChampSelectData {
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectPlayer {
     #[serde(default)]
-    #[serde(rename = "cellId")]
     pub cell_id: u8,
     pub puuid: String,
-    #[serde(rename = "summonerId")]
     pub summoner_id: u64,
-    #[serde(rename = "championId")]
     pub champion_id: u16,
 }
 
@@ -100,8 +100,8 @@ pub struct ChampSelectPlayer {
 #[serde(rename_all = "camelCase")]
 pub struct GameFlowSession {
     pub phase: GamePhase,
-    #[serde(rename = "gameData")]
     pub game_data: GameFlowGameData,
+    pub map: Map,
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,12 +113,17 @@ pub struct GameFlowGameData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Map {
+    pub game_mode: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MatchMaking {
-    #[serde(rename = "queueId")]
     pub queue_id: u16,
-    #[serde(rename = "searchState")]
     pub search_state: String,
-    #[serde(rename = "readyCheck")]
     pub ready_check: MatchMakingReadyCheck,
 }
 
@@ -127,6 +132,12 @@ pub struct MatchMaking {
 pub struct MatchMakingReadyCheck {
     pub state: String,
     pub timer: f32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChatConversation {
+    pub id: String,
+    pub event_type: EventType,
 }
 
 /// Deserialize champion IDs from a JSON array of objects
@@ -144,4 +155,40 @@ where
     // 然后提取 champion_id 字段值
     let wrappers = Vec::<ChampWrapper>::deserialize(deserializer)?;
     Ok(wrappers.into_iter().map(|w| w.champion_id).collect())
+}
+
+/// Deserialize ChatConversation event
+fn chat_conversation_deserializer<'de, D>(deserializer: D) -> Result<ChatConversation, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+
+    let prefix = "/lol-chat/v1/conversations/";
+
+    if let Some(uri) = value.get("uri").and_then(|v| v.as_str()) {
+        if uri.starts_with(prefix) && uri.ends_with("lol-champ-select.pvp.net") {
+            let event_type = if let Some(event_type) = value.get("eventType") {
+                EventType::deserialize(event_type).map_err(Error::custom)?
+            } else {
+                return Err(Error::missing_field("eventType"));
+            };
+
+            // 确保 URI 以指定前缀开头
+            if !uri.starts_with(prefix) {
+                return Err(Error::custom("URI does not start with the expected prefix"));
+            }
+            // 这里可以进一步解析 URI 以提取对话 ID
+            let conversation_id = uri.strip_prefix(prefix).unwrap();
+
+            return Ok(ChatConversation {
+                id: conversation_id.to_owned(),
+                event_type,
+            });
+        }
+    }
+
+    Err(serde::de::Error::custom(
+        "URI does not match chat conversation pattern",
+    ))
 }

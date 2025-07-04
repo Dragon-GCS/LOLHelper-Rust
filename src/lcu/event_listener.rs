@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
 use futures_util::{TryStreamExt, sink::SinkExt};
+use log::error;
+#[cfg(not(debug_assertions))]
+use log::info;
 use reqwest_websocket::{Message, RequestBuilderExt};
 
 use super::LcuClient;
@@ -35,7 +38,9 @@ pub async fn start_event_listener(
         let handler = lcu.clone();
         let ctx = ctx.clone();
         tokio::spawn(async move {
-            handler.update_summoner_info(ctx).await;
+            handler.update_summoner_info(ctx).await.unwrap_or_else(|e| {
+                error!("更新玩家信息失败: {e}");
+            });
         });
     }
     while let Some(message) = ws.try_next().await? {
@@ -43,7 +48,12 @@ pub async fn start_event_listener(
             let handler = lcu.clone();
             let ctx = ctx.clone();
             // tokio::spawn(async move {
-            handler.handle_message(&text, ctx).await;
+            handler
+                .handle_message(&text, ctx)
+                .await
+                .unwrap_or_else(|e| {
+                    error!("处理消息失败: {e}");
+                });
             // });
         }
     }

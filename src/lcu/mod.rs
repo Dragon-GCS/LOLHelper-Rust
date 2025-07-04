@@ -1,3 +1,4 @@
+mod api_schema;
 mod client;
 mod event;
 mod event_listener;
