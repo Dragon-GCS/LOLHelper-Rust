@@ -25,7 +25,7 @@ pub enum EventType {
     Create,
 }
 
-#[derive(Default, Debug, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
 pub enum GamePhase {
     ChampSelect,
     GameStart,
@@ -128,9 +128,17 @@ pub struct MatchMaking {
 }
 
 #[derive(Debug, Deserialize)]
+
+pub enum MatchReadyResponse {
+    Accepted,
+    Declined,
+    None,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchMakingReadyCheck {
-    pub state: String,
+    pub player_response: MatchReadyResponse,
     pub timer: f32,
 }
 

@@ -6,7 +6,7 @@ use crate::{
     errors::HelperError,
     lcu::{
         api_schema::{Match, Matches},
-        event::{EventType, GamePhase},
+        event::{EventType, GamePhase, MatchReadyResponse},
     },
 };
 use anyhow::Result;
@@ -60,7 +60,7 @@ impl LcuClient {
             let text = r
                 .text()
                 .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+                .unwrap_or_else(|e| format!("Unknown error: {e}"));
             error!("请求API({api})失败: {text}");
             Err(HelperError::ResponseError(text).into())
         } else {
@@ -110,11 +110,9 @@ impl LcuClient {
                 if let GamePhase::Other = data.phase {
                     debug!("Unknown GamePhase: {message}")
                 }
-                {
-                    // Use block to ensure we don't hold the lock for too long
-                    if *ctx.game_phase.read().unwrap() == data.phase {
-                        return Ok(());
-                    }
+                // 在 if 语句中使用 read 锁，避免长时间持有锁导致死锁
+                if *ctx.game_phase.read().unwrap() == data.phase {
+                    return Ok(());
                 }
                 if matches!(&data.phase, GamePhase::Lobby | GamePhase::None) {
                     ctx.reset();
@@ -127,9 +125,12 @@ impl LcuClient {
                 _event_type: _,
                 data,
             } => {
-                if data.is_some() && !*ctx.accepted.read().unwrap() {
+                if !*ctx.accepted.read().unwrap()
+                    && data.is_some_and(|data| {
+                        matches!(data.player_response, MatchReadyResponse::None)
+                    })
+                {
                     self.auto_accept(ctx).await;
-                    info!("Auto accept game");
                 }
             }
             Event::LobbyTeamBuilderMatchmaking {
@@ -146,15 +147,13 @@ impl LcuClient {
                         *my_team = data.my_team;
                     }
                 }
-                if !ctx.game_mode.read().unwrap().is_empty()
-                    && !ctx.conversation_id.read().unwrap().is_empty()
-                {
+                if *ctx.auto_send_analysis.read().unwrap() {
                     let ctx = ctx.clone();
                     self.analyze_team_players(ctx).await.unwrap_or_else(|e| {
                         error!("Failed to analyze team players: {e}");
                     });
                 }
-                self.auto_select(ctx, data.bench_champions).await;
+                self.auto_pick(ctx, data.bench_champions).await;
             }
             Event::ChatConversation(data) => match data.event_type {
                 EventType::Create => {
@@ -203,8 +202,8 @@ impl LcuClient {
         Ok(champions)
     }
 
-    async fn auto_select(&self, ctx: Arc<HelperContext>, bench_champions: Vec<u16>) {
-        if bench_champions.is_empty() {
+    async fn auto_pick(&self, ctx: Arc<HelperContext>, bench_champions: Vec<u16>) {
+        if bench_champions.is_empty() || !ctx.auto_pick.read().unwrap().enabled {
             return;
         }
         let select_champion = {
@@ -239,19 +238,26 @@ impl LcuClient {
     }
 
     async fn auto_accept(&self, ctx: Arc<HelperContext>) {
-        if *ctx.accepted.read().unwrap() {
-            return;
+        let delay = *ctx.auto_accepted_delay.read().unwrap();
+        if delay >= 0 {
+            println!("将在 {delay} 秒后自动接受对局。");
+            tokio::time::sleep(tokio::time::Duration::from_secs(delay as u64)).await;
         }
-        if self.post(LcuUri::ACCEPT_GAME).await.is_err() {
-            return;
-        }
+        let _ = self.post(LcuUri::ACCEPT_GAME).await.map_err(|e| {
+            error!("自动接受对局失败: {e}");
+        });
+        info!("对局已自动接受");
         *ctx.accepted.write().unwrap() = true;
     }
 
     async fn analyze_team_players(&self, ctx: Arc<HelperContext>) -> Result<()> {
-        if *ctx.analysis_sent_flag.read().unwrap() {
+        if *ctx.analysis_sent_flag.read().unwrap()
+            || ctx.game_mode.read().unwrap().is_empty()
+            || ctx.conversation_id.read().unwrap().is_empty()
+        {
             return Ok(());
         }
+
         let game_mode = { ctx.game_mode.read().unwrap().clone() };
         let conversation_id = { ctx.conversation_id.read().unwrap().clone() };
         info!("当前游戏模式: {game_mode}");

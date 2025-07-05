@@ -65,7 +65,7 @@ async fn test_listener() -> anyhow::Result<()> {
     let client = Arc::new(LcuClient::new()?);
     let task = tokio::spawn(start_event_listener(
         client.clone(),
-        Arc::new(HelperContext::default()),
+        Arc::new(HelperContext::new()),
     ));
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     task.abort();

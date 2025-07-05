@@ -21,6 +21,7 @@ pub struct AutoPick {
     // champion_id: pority
     pub selected: HashMap<u16, u16>,
     pub unselected: HashMap<u16, u16>,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Default)]
@@ -29,19 +30,32 @@ pub struct HelperContext {
     pub champions: RwLock<HashMap<u16, String>>,
     pub champion_id: RwLock<u16>,
     pub my_team: RwLock<Vec<ChampSelectPlayer>>,
-    pub auto_pick: RwLock<AutoPick>,
     pub game_phase: RwLock<GamePhase>,
     pub game_mode: RwLock<String>,
     pub conversation_id: RwLock<String>,
+
+    // For auto pick champion
+    pub auto_pick: RwLock<AutoPick>,
+    // For auto accept
     pub accepted: RwLock<bool>,
+    pub auto_accepted_delay: RwLock<isize>,
+    // For auto send analysis
+    pub auto_send_analysis: RwLock<bool>,
     pub analysis_sent_flag: RwLock<bool>,
 }
 
 impl HelperContext {
+    pub fn new() -> Self {
+        let ctx = Self::default();
+        *ctx.auto_accepted_delay.write().unwrap() = 3;
+        *ctx.auto_send_analysis.write().unwrap() = true;
+        ctx.auto_pick.write().unwrap().enabled = true;
+        ctx
+    }
+
     pub fn reset(&self) {
         *self.champion_id.write().unwrap() = 0;
         (*self.my_team.write().unwrap()).clear();
-        *self.accepted.write().unwrap() = false;
         self.conversation_id.write().unwrap().clear();
         self.game_mode.write().unwrap().clear();
         *self.analysis_sent_flag.write().unwrap() = false;
