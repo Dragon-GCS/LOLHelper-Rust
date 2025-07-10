@@ -114,8 +114,14 @@ impl LcuClient {
                 if *ctx.game_phase.read().unwrap() == data.phase {
                     return Ok(());
                 }
-                if matches!(&data.phase, GamePhase::Lobby | GamePhase::None) {
-                    ctx.reset();
+                match &data.phase {
+                    GamePhase::Lobby | GamePhase::None => {
+                        ctx.reset();
+                    }
+                    GamePhase::Matchmaking if *ctx.accepted.read().unwrap() => {
+                        *ctx.accepted.write().unwrap() = false;
+                    }
+                    _ => {}
                 }
                 info!("当前客户端状态：{:?}", &data.phase);
                 *ctx.game_phase.write().unwrap() = data.phase;
@@ -137,6 +143,7 @@ impl LcuClient {
                 _event_type: _,
                 data: _,
             } => {}
+            Event::SubsetChampionList { _event_type, data } => {}
             Event::ChampSelectSession {
                 _event_type: _,
                 data,
@@ -147,7 +154,9 @@ impl LcuClient {
                         *my_team = data.my_team;
                     }
                 }
-                if *ctx.auto_send_analysis.read().unwrap() {
+                if *ctx.auto_send_analysis.read().unwrap()
+                    && *ctx.game_mode.read().unwrap() != "TFT"
+                {
                     let ctx = ctx.clone();
                     self.analyze_team_players(ctx).await.unwrap_or_else(|e| {
                         error!("Failed to analyze team players: {e}");
@@ -165,6 +174,11 @@ impl LcuClient {
                 }
                 _ => {}
             },
+            Event::CurrentChampion { event_type, data } => {
+                if event_type == EventType::Create {
+                    *ctx.champion_id.write().unwrap() = data;
+                }
+            }
             #[cfg(debug_assertions)]
             Event::Other(_event) => {
                 #[cfg(feature = "debug_events")]
@@ -190,20 +204,27 @@ impl LcuClient {
     pub async fn get_owned_champions(&self) -> Result<HashMap<u16, String>> {
         let response = self.get(LcuUri::OWNED_CHAMPIONS).await?;
         let data = response.json::<Vec<Value>>().await?;
-        let mut champions = HashMap::new();
-        data.into_iter().for_each(|champion| {
-            if let (Some(id), Some(name)) = (
-                champion.get("id").and_then(|v| v.as_u64()),
-                champion.get("name").and_then(|v| v.as_str()),
-            ) {
-                champions.insert(id as u16, name.to_string());
-            }
-        });
+        let champions = data
+            .into_iter()
+            .filter_map(|champion| {
+                match (
+                    champion.get("id").and_then(|v| v.as_u64()),
+                    champion.get("name").and_then(|v| v.as_str()),
+                ) {
+                    (Some(id), Some(name)) => Some((id as u16, name.to_string())),
+                    _ => None,
+                }
+            })
+            .collect();
         Ok(champions)
     }
 
     async fn auto_pick(&self, ctx: Arc<HelperContext>, bench_champions: Vec<u16>) {
-        if bench_champions.is_empty() || !ctx.auto_pick.read().unwrap().enabled {
+        if !ctx.auto_pick.read().unwrap().enabled
+            || bench_champions.is_empty()
+            || *ctx.champion_id.read().unwrap() == 0
+            || *ctx.picked.read().unwrap()
+        {
             return;
         }
         let select_champion = {
@@ -228,19 +249,22 @@ impl LcuClient {
             }
             priority_champion.unwrap()
         };
-        if self
-            .post(&LcuUri::swap_champion(*select_champion))
-            .await
-            .is_ok()
-        {
-            info!("自动选择英雄: {select_champion}");
-        }
+        match self.post(&LcuUri::swap_champion(*select_champion)).await {
+            Ok(_) => {
+                info!("自动选择英雄: {select_champion}");
+                *ctx.champion_id.write().unwrap() = *select_champion;
+                *ctx.picked.write().unwrap() = true;
+            }
+            Err(e) => {
+                error!("自动选择英雄失败: {e}");
+            }
+        };
     }
 
     async fn auto_accept(&self, ctx: Arc<HelperContext>) {
         let delay = *ctx.auto_accepted_delay.read().unwrap();
         if delay >= 0 {
-            println!("将在 {delay} 秒后自动接受对局。");
+            info!("将在 {delay} 秒后自动接受对局。");
             tokio::time::sleep(tokio::time::Duration::from_secs(delay as u64)).await;
         }
         let _ = self.post(LcuUri::ACCEPT_GAME).await.map_err(|e| {

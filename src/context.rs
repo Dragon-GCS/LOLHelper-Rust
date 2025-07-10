@@ -36,6 +36,7 @@ pub struct HelperContext {
 
     // For auto pick champion
     pub auto_pick: RwLock<AutoPick>,
+    pub picked: RwLock<bool>,
     // For auto accept
     pub accepted: RwLock<bool>,
     pub auto_accepted_delay: RwLock<isize>,

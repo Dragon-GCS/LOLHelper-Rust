@@ -18,7 +18,7 @@ pub(super) struct EventMessage(
     pub Event, // event data
 );
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub enum EventType {
     Update,
     Delete,
@@ -66,6 +66,18 @@ pub enum Event {
         #[serde(rename = "eventType")]
         _event_type: EventType,
         data: ChampSelectData,
+    },
+    #[serde(rename = "/lol-lobby-team-builder/champ-select/v1/current-champion")]
+    CurrentChampion {
+        #[serde(rename = "eventType")]
+        event_type: EventType,
+        data: u16, // Champion ID
+    },
+    #[serde(rename = "/lol-lobby-team-builder/champ-select/v1/subset-champion-list")]
+    SubsetChampionList {
+        #[serde(rename = "eventType")]
+        _event_type: EventType,
+        data: Vec<u16>, // Champion IDs
     },
     #[serde(deserialize_with = "chat_conversation_deserializer")]
     #[serde(untagged)]

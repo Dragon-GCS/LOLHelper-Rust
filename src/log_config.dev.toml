@@ -20,6 +20,6 @@ appenders = ["console", "ui_log"]
 level = "WARN"
 appenders = ["ui_log"]
 
-[loggers."lcu_client::lcu::handler"]
+[loggers."lcu_client::lcu::client"]
 level = "TRACE"
 appenders = ["file"]
