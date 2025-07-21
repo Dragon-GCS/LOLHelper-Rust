@@ -22,4 +22,7 @@ impl LcuUri {
             "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={beg_idx}&endIndex={end_idx}"
         )
     }
+    pub fn bp_champions(action: &str) -> String {
+        format!("/lol-champ-select/v1/session/actions/{action}")
+    }
 }

@@ -1,19 +1,18 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use super::{Event, LcuUri, event::EventMessage};
 use crate::{
-    context::{HelperContext, Summoner},
+    context::{Champion, HelperContext, Summoner},
     errors::HelperError,
     lcu::{
         api_schema::{Match, Matches},
-        event::{EventType, GamePhase, MatchReadyResponse},
+        event::{ChampSelectData, EventType, GamePhase, MatchReadyResponse},
     },
 };
 use anyhow::Result;
 
 use futures_util::StreamExt;
 use futures_util::stream::FuturesUnordered;
-#[cfg(all(debug_assertions, feature = "debug_events"))]
 use log::debug;
 use log::{error, info};
 
@@ -61,7 +60,7 @@ impl LcuClient {
                 .text()
                 .await
                 .unwrap_or_else(|e| format!("Unknown error: {e}"));
-            error!("请求API({api})失败: {text}");
+            debug!("请求API({api})失败: {text}");
             Err(HelperError::ResponseError(text).into())
         } else {
             Ok(r)
@@ -80,6 +79,10 @@ impl LcuClient {
 
     async fn post_json<T: serde::Serialize>(&self, api: &str, body: &T) -> Result<Response> {
         self.request(reqwest::Method::POST, api, Some(body)).await
+    }
+
+    async fn patch_json<T: serde::Serialize>(&self, api: &str, body: &T) -> Result<Response> {
+        self.request(reqwest::Method::PATCH, api, Some(body)).await
     }
 
     async fn send_message(&self, conversation_id: &str, message: &str) {
@@ -143,7 +146,11 @@ impl LcuClient {
                 _event_type: _,
                 data: _,
             } => {}
-            Event::SubsetChampionList { _event_type, data } => {}
+            Event::SubsetChampionList { _event_type, data } => {
+                if ctx.subset_champion_list.read().unwrap().is_empty() {
+                    *ctx.subset_champion_list.write().unwrap() = data;
+                }
+            }
             Event::ChampSelectSession {
                 _event_type: _,
                 data,
@@ -151,7 +158,7 @@ impl LcuClient {
                 if ctx.my_team.read().unwrap().is_empty() && !data.my_team.is_empty() {
                     {
                         let mut my_team = ctx.my_team.write().unwrap();
-                        *my_team = data.my_team;
+                        *my_team = data.my_team.clone();
                     }
                 }
                 if *ctx.auto_send_analysis.read().unwrap()
@@ -162,7 +169,7 @@ impl LcuClient {
                         error!("Failed to analyze team players: {e}");
                     });
                 }
-                self.auto_pick(ctx, data.bench_champions).await;
+                self.auto_pick(ctx, data).await;
             }
             Event::ChatConversation(data) => match data.event_type {
                 EventType::Create => {
@@ -201,7 +208,7 @@ impl LcuClient {
         Ok(())
     }
 
-    pub async fn get_owned_champions(&self) -> Result<HashMap<u16, String>> {
+    pub async fn get_owned_champions(&self) -> Result<Vec<Champion>> {
         let response = self.get(LcuUri::OWNED_CHAMPIONS).await?;
         let data = response.json::<Vec<Value>>().await?;
         let champions = data
@@ -211,7 +218,7 @@ impl LcuClient {
                     champion.get("id").and_then(|v| v.as_u64()),
                     champion.get("name").and_then(|v| v.as_str()),
                 ) {
-                    (Some(id), Some(name)) => Some((id as u16, name.to_string())),
+                    (Some(id), Some(name)) => Some(Champion(id as u16, name.to_string())),
                     _ => None,
                 }
             })
@@ -219,46 +226,77 @@ impl LcuClient {
         Ok(champions)
     }
 
-    async fn auto_pick(&self, ctx: Arc<HelperContext>, bench_champions: Vec<u16>) {
+    async fn swap_champion(&self, champion_id: u16) -> Result<Response> {
+        self.post(&LcuUri::swap_champion(champion_id)).await
+    }
+
+    async fn pick_champion(&self, champion_id: u16, action_id: u8) -> Result<Response> {
+        self.patch_json(
+            &LcuUri::bp_champions(&action_id.to_string()),
+            &serde_json::json!({"completed": true, "type": "pick", "championId": champion_id}),
+        )
+        .await
+    }
+
+    async fn auto_pick(&self, ctx: Arc<HelperContext>, data: ChampSelectData) {
         if !ctx.auto_pick.read().unwrap().enabled
-            || bench_champions.is_empty()
-            || *ctx.champion_id.read().unwrap() == 0
             || *ctx.picked.read().unwrap()
+            || *ctx.champion_id.read().unwrap() != 0
         {
             return;
         }
-        let select_champion = {
-            let selected = &ctx.auto_pick.read().unwrap().selected;
-            let priority_champion = bench_champions
-                .iter()
-                .filter(|&champion| selected.contains_key(champion))
-                .max_by_key(|&champion| selected[champion]);
 
-            let champion_id = ctx.champion_id.read().unwrap();
-            // 可选英雄中没有自动选择的英雄
-            // 当前英雄优先级大于自动选择的英雄
-            if priority_champion.is_none()
-                || selected
-                    .get(&*champion_id)
-                    .map(|&current_priority| {
-                        current_priority > selected[priority_champion.unwrap()]
-                    })
-                    .unwrap_or(false)
-            {
+        let selected = { ctx.auto_pick.read().unwrap().selected.clone() };
+        if !ctx.subset_champion_list.read().unwrap().is_empty() {
+            for champion in selected.iter() {
+                if ctx
+                    .subset_champion_list
+                    .read()
+                    .unwrap()
+                    .contains(&champion.0)
+                    && self
+                        .pick_champion(champion.0, data.local_player_cell_id)
+                        .await
+                        .is_ok()
+                {
+                    info!("自动选择英雄: {}", champion.1);
+                    *ctx.champion_id.write().unwrap() = champion.0;
+                    *ctx.picked.write().unwrap() = true;
+                    return;
+                }
+            }
+        }
+
+        if data.bench_enabled {
+            for champion in selected.iter() {
+                if data.bench_champions.contains(&champion.0)
+                    && self.swap_champion(champion.0).await.is_ok()
+                {
+                    info!("自动选择英雄: {}", champion.1);
+                    *ctx.champion_id.write().unwrap() = champion.0;
+                    *ctx.picked.write().unwrap() = true;
+                    return;
+                }
+            }
+        }
+
+        let action = data.actions.iter().find(|action| {
+            action.actor_cell_id == data.local_player_cell_id
+                && action.action_type == "pick"
+                && action.is_in_progress
+        });
+        if action.is_none() {
+            return;
+        }
+        let action = action.unwrap();
+
+        for champion in selected.into_iter() {
+            if self.pick_champion(champion.0, action.id).await.is_ok() {
+                info!("自动选择英雄: {}", champion.1);
+                *ctx.picked.write().unwrap() = true;
                 return;
             }
-            priority_champion.unwrap()
-        };
-        match self.post(&LcuUri::swap_champion(*select_champion)).await {
-            Ok(_) => {
-                info!("自动选择英雄: {select_champion}");
-                *ctx.champion_id.write().unwrap() = *select_champion;
-                *ctx.picked.write().unwrap() = true;
-            }
-            Err(e) => {
-                error!("自动选择英雄失败: {e}");
-            }
-        };
+        }
     }
 
     async fn auto_accept(&self, ctx: Arc<HelperContext>) {
@@ -290,7 +328,13 @@ impl LcuClient {
                 .read()
                 .unwrap()
                 .iter()
-                .map(|player| player.puuid.clone())
+                .filter_map(|player| {
+                    if player.puuid.is_empty() {
+                        None
+                    } else {
+                        Some(player.puuid.clone())
+                    }
+                })
                 .collect::<Vec<String>>()
         };
         let mut tasks = puuids

@@ -88,17 +88,36 @@ pub enum Event {
     Other(Value),
 }
 
+pub type ChampionId = u16;
+pub type ChampionName = String;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectData {
     #[serde(deserialize_with = "deserialize_champion_ids")]
     pub bench_champions: Vec<u16>,
     pub bench_enabled: bool,
+    #[serde(deserialize_with = "unwrap_actions")]
+    pub actions: Vec<Action>,
+    pub local_player_cell_id: u8,
     pub id: String,
     pub my_team: Vec<ChampSelectPlayer>,
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Action {
+    #[serde(rename = "actorCellId")]
+    pub actor_cell_id: u8,
+    #[serde(rename = "championId")]
+    pub champion_id: u16,
+    pub completed: bool,
+    pub id: u8,
+    #[serde(rename = "isInProgress")]
+    pub is_in_progress: bool,
+    #[serde(rename = "type")]
+    pub action_type: String,
+}
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectPlayer {
     #[serde(default)]
@@ -175,6 +194,18 @@ where
     // 然后提取 champion_id 字段值
     let wrappers = Vec::<ChampWrapper>::deserialize(deserializer)?;
     Ok(wrappers.into_iter().map(|w| w.champion_id).collect())
+}
+
+fn unwrap_actions<'de, D>(deserializer: D) -> Result<Vec<Action>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let actions = Vec::<Vec<Action>>::deserialize(deserializer).unwrap();
+    if actions.is_empty() {
+        Ok(vec![])
+    } else {
+        Ok(actions.into_iter().flatten().collect())
+    }
 }
 
 /// Deserialize ChatConversation event

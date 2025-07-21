@@ -1,6 +1,4 @@
-use crate::lcu::GamePhase;
-
-use super::lcu::ChampSelectPlayer;
+use super::lcu::{ChampSelectPlayer, ChampionId, ChampionName, GamePhase};
 use log::debug;
 use serde::Deserialize;
 use std::{collections::HashMap, sync::RwLock};
@@ -16,11 +14,14 @@ pub struct Summoner {
     pub puuid: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct Champion(pub ChampionId, pub ChampionName);
+
 #[derive(Debug, Default)]
 pub struct AutoPick {
     // champion_id: pority
-    pub selected: HashMap<u16, u16>,
-    pub unselected: HashMap<u16, u16>,
+    pub selected: Vec<Champion>,
+    pub unselected: Vec<ChampionId>,
     pub enabled: bool,
 }
 
@@ -35,6 +36,7 @@ pub struct HelperContext {
     pub conversation_id: RwLock<String>,
 
     // For auto pick champion
+    pub subset_champion_list: RwLock<Vec<u16>>,
     pub auto_pick: RwLock<AutoPick>,
     pub picked: RwLock<bool>,
     // For auto accept
@@ -57,6 +59,7 @@ impl HelperContext {
     pub fn reset(&self) {
         *self.champion_id.write().unwrap() = 0;
         (*self.my_team.write().unwrap()).clear();
+        (*self.subset_champion_list.write().unwrap()).clear();
         self.conversation_id.write().unwrap().clear();
         self.game_mode.write().unwrap().clear();
         *self.analysis_sent_flag.write().unwrap() = false;
