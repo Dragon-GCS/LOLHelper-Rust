@@ -1,4 +1,4 @@
-use super::lcu::{ChampSelectPlayer, ChampionId, ChampionName, GamePhase};
+use crate::lcu::{ChampSelectPlayer, ChampionId, ChampionName, GamePhase};
 use log::debug;
 use serde::Deserialize;
 use std::{collections::HashMap, sync::RwLock};

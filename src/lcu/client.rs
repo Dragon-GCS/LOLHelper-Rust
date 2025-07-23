@@ -1,26 +1,23 @@
 use std::sync::Arc;
 
-use super::{Event, LcuUri, event::EventMessage};
+use super::{
+    LcuMeta, LcuUri,
+    api_schema::{Match, Matches, MessageBody, PlayerScore},
+    event::{ChampSelectData, Event, EventMessage, EventType, GamePhase, MatchReadyResponse},
+};
+
 use crate::{
     context::{Champion, HelperContext, Summoner},
     errors::HelperError,
-    lcu::{
-        api_schema::{Match, Matches},
-        event::{ChampSelectData, EventType, GamePhase, MatchReadyResponse},
-    },
 };
 use anyhow::Result;
 
 use futures_util::StreamExt;
 use futures_util::stream::FuturesUnordered;
-use log::debug;
-use log::{error, info};
+use log::{debug, error, info};
 
 use reqwest::Response;
 use serde_json::Value;
-
-use super::LcuMeta;
-use super::api_schema::{MessageBody, PlayerScore};
 
 pub struct LcuClient {
     pub client: Arc<reqwest::Client>,

@@ -11,15 +11,15 @@ encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S.%f)(local)} | {l:>5} | {M}:{L} - {m}
 kind = "ui_logs"
 max_size = 1024
 
-[loggers.lcu_client]
+[loggers.lcu_helper]
 level = "TRACE"
 appenders = ["console", "ui_log"]
 
 # add for test
-[loggers."lcu_client::log"]
+[loggers."lcu_helper::log"]
 level = "WARN"
 appenders = ["ui_log"]
 
-[loggers."lcu_client::lcu::client"]
+[loggers."lcu_helper::lcu::client"]
 level = "TRACE"
 appenders = ["file"]

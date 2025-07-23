@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use futures_util::{TryStreamExt, sink::SinkExt};
-#[cfg(not(debug_assertions))]
-use log::info;
 use log::{error, info};
 use reqwest_websocket::{Message, RequestBuilderExt};
 use tokio::sync::RwLock;

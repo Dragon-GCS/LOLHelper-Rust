@@ -1,6 +1,5 @@
 use eframe::{NativeOptions, egui::ViewportBuilder};
-use lcu_client::app::MyApp;
-use lcu_client::log::init_logger;
+use lcu_helper::{app::MyApp, log::init_logger};
 
 const WINDOW_SIZE: [f32; 2] = [1200.0, 600.0];
 #[tokio::main]
