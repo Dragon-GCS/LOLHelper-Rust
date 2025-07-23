@@ -21,12 +21,13 @@ pub struct Champion(pub ChampionId, pub ChampionName);
 pub struct AutoPick {
     // champion_id: pority
     pub selected: Vec<Champion>,
-    pub unselected: Vec<ChampionId>,
+    pub unselected: Vec<Champion>,
     pub enabled: bool,
 }
 
 #[derive(Debug, Default)]
 pub struct HelperContext {
+    pub listening: RwLock<bool>,
     pub me: RwLock<Summoner>,
     pub champions: RwLock<HashMap<u16, String>>,
     pub champion_id: RwLock<u16>,

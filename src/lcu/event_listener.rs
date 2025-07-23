@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use futures_util::{TryStreamExt, sink::SinkExt};
-use log::error;
 #[cfg(not(debug_assertions))]
 use log::info;
+use log::{error, info};
 use reqwest_websocket::{Message, RequestBuilderExt};
+use tokio::sync::RwLock;
 
 use super::LcuClient;
 #[cfg(not(debug_assertions))]
@@ -12,11 +13,12 @@ use super::event::SUBSCRIBED_EVENT;
 use crate::context::HelperContext;
 
 pub async fn start_event_listener(
-    lcu: Arc<LcuClient>,
+    lcu: Arc<RwLock<LcuClient>>,
     ctx: Arc<HelperContext>,
 ) -> anyhow::Result<()> {
-    let url = lcu.host_url();
-    let response = lcu
+    let lcu_guard = lcu.read().await;
+    let url = lcu_guard.host_url();
+    let response = lcu_guard
         .client
         .get(format!("wss://{url}"))
         .upgrade()
@@ -38,17 +40,28 @@ pub async fn start_event_listener(
         let handler = lcu.clone();
         let ctx = ctx.clone();
         tokio::spawn(async move {
-            handler.update_summoner_info(ctx).await.unwrap_or_else(|e| {
-                error!("更新玩家信息失败: {e}");
-            });
+            handler
+                .read()
+                .await
+                .update_summoner_info(ctx)
+                .await
+                .unwrap_or_else(|e| {
+                    error!("更新玩家信息失败: {e}");
+                });
         });
     }
-    while let Some(message) = ws.try_next().await? {
+    while *ctx.listening.read().unwrap() {
+        let Some(message) = ws.try_next().await? else {
+            break;
+        };
+
         if let Message::Text(text) = message {
             let handler = lcu.clone();
             let ctx = ctx.clone();
             // tokio::spawn(async move {
             handler
+                .read()
+                .await
                 .handle_message(&text, ctx)
                 .await
                 .unwrap_or_else(|e| {
@@ -57,14 +70,16 @@ pub async fn start_event_listener(
             // });
         }
     }
+    info!("Event listener stopped.");
     Ok(())
 }
 
 #[tokio::test]
 async fn test_listener() -> anyhow::Result<()> {
-    let client = Arc::new(LcuClient::new()?);
+    let mut client = LcuClient::default();
+    client.meta.refresh()?;
     let task = tokio::spawn(start_event_listener(
-        client.clone(),
+        Arc::new(RwLock::new(client)),
         Arc::new(HelperContext::new()),
     ));
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;

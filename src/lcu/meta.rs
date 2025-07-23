@@ -38,19 +38,19 @@ pub struct LcuMeta {
     pub host_url: Option<String>,
 }
 
-impl LcuMeta {
-    pub fn new() -> anyhow::Result<Self> {
-        let mut meta = Self {
+impl Default for LcuMeta {
+    fn default() -> Self {
+        Self {
             process_name: LCU_PROCESS_NAME.to_string(),
             pid: 0,
             port: None,
             token: None,
             host_url: None,
-        };
-        meta.refresh()?;
-        Ok(meta)
+        }
     }
+}
 
+impl LcuMeta {
     /// 调用windows API获取进程的命令行参数，可以不需要管理员权限
     /// 代码参考https://jishuzhan.net/article/1869253091128250370
     /// window api文档https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess
@@ -150,9 +150,8 @@ impl LcuMeta {
 
 #[test]
 fn test_get_process_pid_by_name() {
-    let meta = LcuMeta::new();
-    assert!(meta.is_ok());
-    let meta = meta.unwrap();
+    let mut meta = LcuMeta::default();
+    assert!(meta.refresh().is_ok());
     assert!(meta.pid != 0);
     assert!(meta.port.is_some());
     assert!(meta.token.is_some());

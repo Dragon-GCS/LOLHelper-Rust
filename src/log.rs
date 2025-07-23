@@ -1,16 +1,29 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use log4rs::append::Append;
 use log4rs::config::{Deserialize, Deserializers};
+use std::fmt::Display;
 use std::{collections::VecDeque, sync::RwLock};
 
 #[derive(Debug)]
-struct Record {
+pub struct Record {
     level: String,
-    time: DateTime<Utc>,
+    time: DateTime<Local>,
     message: String,
 }
 
-static LOGS: RwLock<VecDeque<Record>> = RwLock::new(VecDeque::new());
+impl Display for Record {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} | {:<5} - {}",
+            self.time.format("%Y-%m-%d %H:%M:%S.%3f"),
+            self.level,
+            self.message
+        )
+    }
+}
+
+pub static LOGS: RwLock<VecDeque<Record>> = RwLock::new(VecDeque::new());
 
 #[derive(Debug)]
 struct UILogsAppender(usize);
@@ -23,7 +36,7 @@ impl Append for UILogsAppender {
         }
         logs.push_back(Record {
             level: record.level().to_string(),
-            time: Utc::now(),
+            time: Local::now(),
             message: record.args().to_string(),
         });
         Ok(())

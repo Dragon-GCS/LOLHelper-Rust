@@ -27,18 +27,19 @@ pub struct LcuClient {
     pub meta: LcuMeta,
 }
 
-impl LcuClient {
-    pub fn new() -> Result<Self> {
+impl Default for LcuClient {
+    fn default() -> Self {
         let client = Arc::new(
             reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()
                 .unwrap(),
         );
-        let meta = LcuMeta::new()?;
-        Ok(LcuClient { client, meta })
+        let meta = LcuMeta::default();
+        LcuClient { client, meta }
     }
-
+}
+impl LcuClient {
     pub fn host_url(&self) -> &str {
         self.meta.host_url.as_ref().unwrap()
     }
