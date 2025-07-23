@@ -75,12 +75,12 @@ macro_rules! render_champion_list {
 }
 
 impl App for MyApp {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::left("Settings")
             .resizable(false)
             .show(ctx, |ui| self.setting_panel(ui));
 
-        egui::CentralPanel::default().show(ctx, |ui| self.log_panel(ui));
+        egui::CentralPanel::default().show(ctx, |ui| self.log_panel(ctx, ui));
 
         if self.champion_pick_window_open {
             egui::Window::new("select")
@@ -105,11 +105,18 @@ impl MyApp {
         let mut fonts = FontDefinitions::default();
         fonts.font_data.insert(
             "msyh".to_owned(),
-            Arc::new(FontData::from_static(include_bytes!("../MSYH.TTC"))),
+            Arc::new(FontData::from_static(include_bytes!(
+                "../MapleMono-NF-CN-Regular.ttf"
+            ))),
         );
         fonts
             .families
             .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "msyh".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
             .unwrap()
             .insert(0, "msyh".to_owned());
 
@@ -223,18 +230,18 @@ impl MyApp {
         );
     }
 
-    fn log_panel(&self, ui: &mut egui::Ui) {
+    fn log_panel(&self, ctx: &egui::Context, ui: &mut egui::Ui) {
         Frame::new()
             .inner_margin(FRAME_MARGIN)
             .corner_radius(5.0)
-            .fill(Color32::LIGHT_GRAY)
+            .fill(ctx.style().visuals.code_bg_color)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
                         for log in LOGS.read().unwrap().iter() {
-                            ui.label(format!("{}", log));
+                            ui.code(format!("{}", log));
                         }
                     });
             });
