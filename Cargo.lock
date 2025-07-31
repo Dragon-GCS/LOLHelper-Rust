@@ -2013,6 +2013,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-util",
  "windows 0.61.1",
 ]
 
