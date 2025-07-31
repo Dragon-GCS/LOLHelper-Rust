@@ -10,6 +10,8 @@ use super::LcuClient;
 #[cfg(not(debug_assertions))]
 use super::event::SUBSCRIBED_EVENT;
 use crate::context::HelperContext;
+#[cfg(not(debug_assertions))]
+use log::debug;
 
 pub async fn start_event_listener(
     lcu: Arc<RwLock<LcuClient>>,
@@ -17,24 +19,25 @@ pub async fn start_event_listener(
     cancel_token: Arc<tokio_util::sync::CancellationToken>,
 ) -> anyhow::Result<()> {
     let url = { lcu.write().await.meta.refresh()? };
-    let response = {
-        lcu.read()
-            .await
-            .client
-            .get(format!("wss://{}", url))
-            .upgrade()
-            .send()
-            .await?
-    };
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap();
 
-    let mut ws = response.into_websocket().await?;
+    let mut ws = client
+        .get(format!("wss://{}", url))
+        .upgrade()
+        .send()
+        .await?
+        .into_websocket()
+        .await?;
 
     #[cfg(debug_assertions)]
     ws.send(Message::Text("[5, \"OnJsonApiEvent\"]".into()))
         .await?;
     #[cfg(not(debug_assertions))]
     for event in SUBSCRIBED_EVENT {
-        info!("subscribed event: {event}");
+        debug!("subscribed event: {event}");
         ws.send(Message::Text(format!("[5, \"OnJsonApiEvent_{event}\"]")))
             .await?;
     }
@@ -48,6 +51,7 @@ pub async fn start_event_listener(
                 error!("更新玩家信息失败: {e}");
             });
     }
+    info!("客户端监听已启动");
     loop {
         tokio::select! {
             _ = cancel_token.cancelled() => {
