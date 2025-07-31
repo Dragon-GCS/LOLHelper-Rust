@@ -2,8 +2,8 @@ use eframe::{NativeOptions, egui::ViewportBuilder};
 use lcu_helper::{app::MyApp, log::init_logger};
 
 const WINDOW_SIZE: [f32; 2] = [1200.0, 600.0];
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+
+fn main() -> anyhow::Result<()> {
     init_logger();
 
     let options = NativeOptions {

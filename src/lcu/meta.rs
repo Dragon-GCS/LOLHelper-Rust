@@ -29,25 +29,12 @@ unsafe extern "system" {
 const PROCESS_COMMAND_LINE_INFORMATION: u32 = 60;
 const LCU_PROCESS_NAME: &str = "LeagueClientUx.exe";
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LcuMeta {
-    process_name: String,
     pid: u32,
-    port: Option<u16>,
-    token: Option<String>,
-    pub host_url: Option<String>,
-}
-
-impl Default for LcuMeta {
-    fn default() -> Self {
-        Self {
-            process_name: LCU_PROCESS_NAME.to_string(),
-            pid: 0,
-            port: None,
-            token: None,
-            host_url: None,
-        }
-    }
+    port: u16,
+    token: String,
+    pub host_url: String,
 }
 
 impl LcuMeta {
@@ -59,25 +46,31 @@ impl LcuMeta {
     /// 首先调用 OpenProcess 获取进程句柄
     /// 然后第一次调用 NtQueryInformationProcess 获取命令参数的长度
     /// 然后分配一个缓冲区，第二次调用 NtQueryInformationProcess 获取命令参数
-    pub fn refresh(&mut self) -> Result<(), HelperError> {
+    pub fn refresh(&mut self) -> Result<String, HelperError> {
         let output = Command::new("wmic")
             .args([
                 "process",
                 "where",
-                &format!("caption='{}'", self.process_name),
+                &format!("caption='{}'", LCU_PROCESS_NAME),
                 "get",
                 "processid",
             ])
             .output()
             .expect("failed to execute wmic");
 
-        self.pid = String::from_utf8_lossy(&output.stdout)
+        let pid = String::from_utf8_lossy(&output.stdout)
             .lines()
             .filter_map(|line| line.trim().parse::<u32>().ok())
             .next()
-            .ok_or("未找到进程PID")
-            .map_err(|_| HelperError::ClientNotFound)?;
-        debug!("客户端进程ID: {}", self.pid);
+            .ok_or(HelperError::ClientNotFound)?;
+
+        if pid == self.pid && !self.host_url.is_empty() {
+            debug!("客户端进程未变更, PID: {}", pid);
+            return Ok(self.host_url.clone());
+        }
+        self.pid = pid;
+        debug!("客户端进程ID: {}", pid);
+
         let cmdline = unsafe {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, self.pid)
                 .map_err(|_| HelperError::ClientNotFound)?;
@@ -124,27 +117,22 @@ impl LcuMeta {
         for arg in cmdline.split_whitespace() {
             let arg = arg.trim_matches('"');
             if let Some(port) = arg.strip_prefix("--app-port=") {
-                self.port = Some(port.parse().unwrap_or(0));
-                info!("客户端端口: {}", self.port.as_ref().unwrap());
+                self.port = port.parse().unwrap_or(0);
+                info!("客户端端口: {}", self.port);
             } else if let Some(token) = arg.strip_prefix("--remoting-auth-token=") {
-                let token = token.to_string();
-                self.token = Some(token);
-                info!("客户端Token: {}", self.token.as_ref().unwrap());
+                self.token = token.to_string();
+                info!("客户端Token: {}", self.token);
             }
         }
 
-        if self.token.is_none() && self.port.is_none() {
+        if self.token.is_empty() && self.port == 0 {
             error!("未找到客户端端口和Token");
             return Err(HelperError::ClientNotFound);
         }
 
-        self.host_url = Some(format!(
-            "riot:{}@127.0.0.1:{}",
-            self.token.as_ref().unwrap(),
-            self.port.as_ref().unwrap()
-        ));
-        info!("客户端host_url: {}", self.host_url.as_ref().unwrap());
-        Ok(())
+        self.host_url = format!("riot:{}@127.0.0.1:{}", self.token, self.port);
+        info!("客户端host_url: {}", self.host_url);
+        Ok(self.host_url.clone())
     }
 }
 
@@ -153,12 +141,10 @@ fn test_get_process_pid_by_name() {
     let mut meta = LcuMeta::default();
     assert!(meta.refresh().is_ok());
     assert!(meta.pid != 0);
-    assert!(meta.port.is_some());
-    assert!(meta.token.is_some());
+    assert!(meta.port != 0);
+    assert!(!meta.token.is_empty());
     println!(
         "PID: {}, Port: {}, Token: {}",
-        meta.pid,
-        meta.port.as_ref().unwrap(),
-        meta.token.as_ref().unwrap()
+        meta.pid, meta.port, meta.token
     );
 }

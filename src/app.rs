@@ -8,13 +8,14 @@ use eframe::{
     },
 };
 use log::error;
+use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     context::{Champion, HelperContext},
     lcu::{LcuClient, start_event_listener},
     log::LOGS,
 };
-use tokio::sync::RwLock;
 
 // 应用常量
 const APP_NAME: &str = "Champion Selector";
@@ -24,12 +25,25 @@ const BUTTON_SPACING: f32 = 30.0;
 const CHAMPION_FRAME_SIZE: Vec2 = Vec2::new(200.0, 200.0);
 
 /// 主应用程序状态
-#[derive(Default)]
 pub struct MyApp {
     ctx: Arc<HelperContext>,
     client: Arc<RwLock<LcuClient>>,
+    rt: tokio::runtime::Runtime,
+    cancel_token: Arc<CancellationToken>,
     /// 英雄选择窗口是否打开
     champion_pick_window_open: bool,
+}
+
+impl Default for MyApp {
+    fn default() -> Self {
+        Self {
+            ctx: Arc::new(HelperContext::default()),
+            client: Arc::new(RwLock::new(LcuClient::default())),
+            rt: tokio::runtime::Runtime::new().unwrap(),
+            cancel_token: Arc::new(CancellationToken::new()),
+            champion_pick_window_open: false,
+        }
+    }
 }
 
 /// 在网格中添加标签和控件的宏
@@ -199,30 +213,21 @@ impl MyApp {
                     if !*self.ctx.listening.read().unwrap() {
                         let client = self.client.clone();
                         let ctx = self.ctx.clone();
-                        tokio::spawn(async move {
-                            let res = {
-                                let mut lcu_guard = client.write().await;
-                                lcu_guard.meta.refresh()
-                            };
-                            match res {
-                                Ok(_) => {
-                                    {
-                                        *ctx.listening.write().unwrap() = true;
-                                    }
-                                    if let Err(e) =
-                                        start_event_listener(client.clone(), ctx.clone()).await
-                                    {
-                                        error!("Failed to start LCU listener: {e}");
-                                        *ctx.listening.write().unwrap() = false;
-                                    };
-                                }
-                                Err(e) => {
-                                    error!("Failed to initialize LCU client: {e}");
-                                }
-                            }
+                        let cancel_token = self.cancel_token.clone();
+                        {
+                            *self.ctx.listening.write().unwrap() = true;
+                        }
+                        self.rt.spawn(async move {
+                            start_event_listener(client, ctx.clone(), cancel_token)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    error!("启动事件监听失败: {e}");
+                                    *ctx.listening.write().unwrap() = false;
+                                })
                         });
                     } else {
-                        *self.ctx.listening.write().unwrap() = false;
+                        self.cancel_token.cancel();
+                        self.cancel_token = Arc::new(CancellationToken::new());
                         self.ctx.reset();
                     }
                 }

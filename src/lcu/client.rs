@@ -38,7 +38,7 @@ impl Default for LcuClient {
 }
 impl LcuClient {
     pub fn host_url(&self) -> &str {
-        self.meta.host_url.as_ref().unwrap()
+        &self.meta.host_url
     }
 
     async fn request<T: serde::Serialize>(
@@ -95,12 +95,12 @@ impl LcuClient {
             });
     }
 
-    pub async fn handle_message(&self, message: &str, ctx: Arc<HelperContext>) -> Result<()> {
+    pub async fn handle_message(&self, message: String, ctx: Arc<HelperContext>) -> Result<()> {
         if message.is_empty() {
             return Ok(());
         }
 
-        let event = serde_json::from_str::<EventMessage>(message)?;
+        let event = serde_json::from_str::<EventMessage>(&message)?;
 
         match event.2 {
             Event::GameFlowSession {
