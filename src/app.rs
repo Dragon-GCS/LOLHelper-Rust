@@ -4,7 +4,7 @@ use eframe::{
     App,
     egui::{
         self, Align, Checkbox, Color32, CursorIcon, DragValue, FontData, FontDefinitions, Frame,
-        Grid, Label, Layout, ScrollArea, Separator, Vec2, Widget,
+        Grid, Id, Label, Layout, Modal, ScrollArea, Separator, Vec2, Widget,
     },
 };
 use log::error;
@@ -30,8 +30,10 @@ pub struct MyApp {
     client: Arc<RwLock<LcuClient>>,
     rt: tokio::runtime::Runtime,
     cancel_token: Arc<CancellationToken>,
-    /// 英雄选择窗口是否打开
+    // 英雄选择窗口是否打开
     champion_pick_window_open: bool,
+    // modal是否打开
+    modal_open: bool,
 }
 
 impl Default for MyApp {
@@ -42,6 +44,7 @@ impl Default for MyApp {
             rt: tokio::runtime::Runtime::new().unwrap(),
             cancel_token: Arc::new(CancellationToken::new()),
             champion_pick_window_open: false,
+            modal_open: false,
         }
     }
 }
@@ -137,7 +140,9 @@ impl MyApp {
         cc.egui_ctx.set_fonts(fonts);
         cc.egui_ctx.set_zoom_factor(1.5);
 
-        Self::default()
+        let app = Self::default();
+        app.ctx.auto_pick.write().unwrap().load();
+        app
     }
 
     fn setting_panel(&mut self, ui: &mut egui::Ui) {
@@ -310,13 +315,58 @@ impl MyApp {
                     .sort_by_key(|champion| champion.1.clone());
                 auto_pick.selected.clear();
             }
+            if ui.button("更新可用英雄").clicked() {
+                if !*self.ctx.listening.read().unwrap() {
+                    self.modal_open = true;
+                } else {
+                    let client = self.client.clone();
+                    let ctx = self.ctx.clone();
+                    self.rt.spawn(async move {
+                        let champions = client
+                            .read()
+                            .await
+                            .get_owned_champions()
+                            .await
+                            .unwrap_or_else(|e| {
+                                error!("获取英雄列表失败: {e}");
+                                vec![]
+                            });
+                        let selected = {
+                            ctx.auto_pick
+                                .read()
+                                .unwrap()
+                                .selected
+                                .iter()
+                                .map(|champ| champ.0)
+                                .collect::<Vec<u16>>()
+                        };
+                        let mut auto_pick = ctx.auto_pick.write().unwrap();
+                        auto_pick.unselected = champions
+                            .into_iter()
+                            .filter(|champ| !selected.contains(&champ.0))
+                            .collect();
+                    });
+                }
+            }
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui.button("关闭").clicked() {
                     self.champion_pick_window_open = false;
+                    self.ctx.auto_pick.write().unwrap().save();
                 }
             });
         });
+
+        if self.modal_open && self.render_modal(ui, "请先启动游戏助手") {
+            self.modal_open = false;
+        }
+    }
+
+    fn render_modal(&self, ui: &mut egui::Ui, message: &str) -> bool {
+        let modal = Modal::new(Id::new("message")).show(ui.ctx(), |ui| {
+            ui.label(message);
+        });
+        modal.should_close()
     }
 
     fn render_draggable_champion_item(

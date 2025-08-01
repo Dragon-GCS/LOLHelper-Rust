@@ -44,14 +44,36 @@ pub async fn start_event_listener(
             .await?;
     }
 
-    {
-        lcu.read()
-            .await
-            .update_summoner_info(ctx.clone())
-            .await
-            .unwrap_or_else(|e| {
-                error!("更新玩家信息失败: {e}");
-            });
+    if ctx.clone().me.read().unwrap().game_name.is_empty() {
+        let lcu = lcu.clone();
+        let ctx = ctx.clone();
+        tokio::spawn(async move {
+            lcu.read()
+                .await
+                .update_summoner_info(ctx)
+                .await
+                .unwrap_or_else(|e| {
+                    error!("更新玩家信息失败: {e}");
+                });
+        });
+    }
+    if ctx.auto_pick.read().unwrap().unselected.is_empty() {
+        let lcu = lcu.clone();
+        let ctx1 = ctx.clone();
+        tokio::spawn(async move {
+            let champions = lcu
+                .read()
+                .await
+                .get_owned_champions()
+                .await
+                .unwrap_or_else(|e| {
+                    error!("加载自动选择数据失败: {e}");
+                    vec![]
+                });
+            let mut auto_pick = ctx1.auto_pick.write().unwrap();
+            auto_pick.unselected = champions;
+            auto_pick.save();
+        });
     }
     info!("客户端监听已启动");
     loop {

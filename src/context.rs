@@ -1,7 +1,9 @@
 use crate::lcu::{ChampSelectPlayer, ChampionId, ChampionName, GamePhase};
 use log::debug;
-use serde::Deserialize;
-use std::{collections::HashMap, sync::RwLock};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fs::File, sync::RwLock};
+
+const AUTO_PICK_FILE: &str = "auto_pick.json";
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Summoner {
@@ -14,15 +16,34 @@ pub struct Summoner {
     pub puuid: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Champion(pub ChampionId, pub ChampionName);
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AutoPick {
     // champion_id: pority
     pub selected: Vec<Champion>,
     pub unselected: Vec<Champion>,
     pub enabled: bool,
+}
+
+impl AutoPick {
+    pub fn save(&self) {
+        let file = File::create(AUTO_PICK_FILE).expect("保存自动选择数据失败");
+        serde_json::to_writer(file, self).expect("序列化自动选择数据失败");
+    }
+
+    pub fn load(&mut self) {
+        let path = std::path::Path::new(AUTO_PICK_FILE);
+        if !path.exists() {
+            return;
+        }
+        let file = File::open(path).expect("打开自动选择数据文件失败");
+        let data: AutoPick = serde_json::from_reader(file).expect("反序列化自动选择数据失败");
+        self.enabled = data.enabled;
+        self.selected = data.selected;
+        self.unselected = data.unselected;
+    }
 }
 
 #[derive(Debug, Default)]
