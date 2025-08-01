@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use eframe::{NativeOptions, egui::ViewportBuilder};
 use lcu_helper::{app::MyApp, log::init_logger};
 

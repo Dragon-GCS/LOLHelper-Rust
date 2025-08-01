@@ -1,6 +1,7 @@
 use log::{debug, error, info};
 use std::ffi::{OsString, c_void};
 use std::os::windows::ffi::OsStringExt;
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 use std::ptr::null_mut;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
@@ -26,6 +27,7 @@ unsafe extern "system" {
     ) -> u32;
 }
 
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 const PROCESS_COMMAND_LINE_INFORMATION: u32 = 60;
 const LCU_PROCESS_NAME: &str = "LeagueClientUx.exe";
 
@@ -55,6 +57,7 @@ impl LcuMeta {
                 "get",
                 "processid",
             ])
+            .creation_flags(CREATE_NO_WINDOW) // 不显示命令行窗口
             .output()
             .expect("failed to execute wmic");
 
@@ -131,7 +134,7 @@ impl LcuMeta {
         }
 
         self.host_url = format!("riot:{}@127.0.0.1:{}", self.token, self.port);
-        info!("客户端host_url: {}", self.host_url);
+        info!("客户端URL: {}", self.host_url);
         Ok(self.host_url.clone())
     }
 }

@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures_util::{TryStreamExt, sink::SinkExt};
 use log::{error, info};
 
+use anyhow::anyhow;
 use reqwest_websocket::{CloseCode, Message, RequestBuilderExt};
 use tokio::sync::RwLock;
 
@@ -21,14 +22,15 @@ pub async fn start_event_listener(
     let url = { lcu.write().await.meta.refresh()? };
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap();
+        .build()?;
 
     let mut ws = client
         .get(format!("wss://{}", url))
+        .timeout(Duration::from_secs(3))
         .upgrade()
         .send()
-        .await?
+        .await
+        .map_err(|_| anyhow!("客户端连接失败，请检查代理是否关闭"))?
         .into_websocket()
         .await?;
 
