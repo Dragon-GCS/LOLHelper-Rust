@@ -1,5 +1,4 @@
 use serde::{Deserialize, Deserializer, de::Error};
-#[cfg(debug_assertions)]
 use serde_json::Value;
 
 #[cfg(not(debug_assertions))]
@@ -83,7 +82,6 @@ pub enum Event {
     #[serde(untagged)]
     ChatConversation(ChatConversation),
 
-    #[cfg(debug_assertions)]
     #[serde(untagged)]
     Other(Value),
 }

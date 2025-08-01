@@ -184,7 +184,6 @@ impl LcuClient {
                     *ctx.champion_id.write().unwrap() = data;
                 }
             }
-            #[cfg(debug_assertions)]
             Event::Other(_event) => {
                 #[cfg(feature = "debug_events")]
                 debug!("Received an unhandled event: {_event}");
