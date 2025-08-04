@@ -45,7 +45,7 @@ pub async fn start_event_listener(
             .await?;
     }
 
-    if ctx.clone().me.read().unwrap().game_name.is_empty() {
+    {
         let lcu = lcu.clone();
         let ctx = ctx.clone();
         tokio::spawn(async move {

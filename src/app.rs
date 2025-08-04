@@ -95,6 +95,10 @@ impl App for MyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // 保存设置到存储
         storage.set_string(
+            "me",
+            serde_json::to_string(&*self.ctx.me.read().unwrap()).unwrap(),
+        );
+        storage.set_string(
             "auto_pick",
             serde_json::to_string(&*self.ctx.auto_pick.read().unwrap()).unwrap(),
         );

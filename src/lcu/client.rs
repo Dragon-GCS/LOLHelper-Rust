@@ -199,9 +199,13 @@ impl LcuClient {
             error!("Failed to parse summoner info: {e}");
             return Ok(());
         }
-        let mut info = ctx.me.write().unwrap();
-        *info = data.unwrap();
-        info!("当前玩家信息: {info:?}");
+        let data = data.unwrap();
+        if data.puuid == ctx.me.read().unwrap().puuid {
+            debug!("玩家信息未变更，跳过更新");
+            return Ok(());
+        }
+        info!("当前玩家信息: {data:?}");
+        *ctx.me.write().unwrap() = data;
         Ok(())
     }
 

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 const AUTO_PICK_FILE: &str = "auto_pick.json";
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Summoner {
     #[serde(rename = "gameName")]
     pub game_name: String,
@@ -86,8 +86,11 @@ impl HelperContext {
         let auto_send_analysis =
             serde_json::from_str(&storage.get_string("auto_send_analysis").unwrap_or_default())
                 .unwrap_or_default();
+        let me =
+            serde_json::from_str(&storage.get_string("me").unwrap_or_default()).unwrap_or_default();
 
         HelperContext {
+            me,
             auto_pick,
             auto_accepted_delay,
             auto_send_analysis,
