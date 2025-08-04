@@ -16,7 +16,6 @@ use crate::{
 };
 
 // 应用常量
-const APP_NAME: &str = "Champion Selector";
 const FRAME_MARGIN: f32 = 5.0;
 const SEPARATOR_SPACING: f32 = 10.0;
 const BUTTON_SPACING: f32 = 30.0;
