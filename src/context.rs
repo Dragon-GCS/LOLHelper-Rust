@@ -1,7 +1,9 @@
-use crate::lcu::{ChampSelectPlayer, ChampionId, ChampionName, GamePhase};
+use crate::lcu::{ChampSelectPlayer, GamePhase};
+use crate::types::{ChampionId, ChampionName, SummonerId};
 use log::debug;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, sync::RwLock};
+use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 const AUTO_PICK_FILE: &str = "auto_pick.json";
 
@@ -10,7 +12,7 @@ pub struct Summoner {
     #[serde(rename = "gameName")]
     pub game_name: String,
     #[serde(rename = "summonerId")]
-    pub summoner_id: u64,
+    pub summoner_id: SummonerId,
     #[serde(rename = "summonerLevel")]
     pub summoner_level: u16,
     pub puuid: String,
@@ -21,70 +23,75 @@ pub struct Champion(pub ChampionId, pub ChampionName);
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AutoPick {
-    // champion_id: pority
     pub selected: Vec<Champion>,
     pub unselected: Vec<Champion>,
     pub enabled: bool,
 }
 
-impl AutoPick {
-    pub fn save(&self) {
-        let file = File::create(AUTO_PICK_FILE).expect("保存自动选择数据失败");
-        serde_json::to_writer(file, self).expect("序列化自动选择数据失败");
-    }
-
-    pub fn load(&mut self) {
-        let path = std::path::Path::new(AUTO_PICK_FILE);
-        if !path.exists() {
-            return;
-        }
-        let file = File::open(path).expect("打开自动选择数据文件失败");
-        let data: AutoPick = serde_json::from_reader(file).expect("反序列化自动选择数据失败");
-        self.enabled = data.enabled;
-        self.selected = data.selected;
-        self.unselected = data.unselected;
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct HelperContext {
-    pub listening: RwLock<bool>,
+    // game state
+    pub listening: AtomicBool,
+    pub champion_id: AtomicU16,
     pub me: RwLock<Summoner>,
-    pub champions: RwLock<HashMap<u16, String>>,
-    pub champion_id: RwLock<u16>,
     pub my_team: RwLock<Vec<ChampSelectPlayer>>,
     pub game_phase: RwLock<GamePhase>,
     pub game_mode: RwLock<String>,
     pub conversation_id: RwLock<String>,
 
     // For auto pick champion
-    pub subset_champion_list: RwLock<Vec<u16>>,
+    pub subset_champion_list: RwLock<Vec<ChampionId>>,
+    // flags
+    pub picked: AtomicBool,
+    pub accepted: AtomicBool,
+    pub analysis_sent_flag: AtomicBool,
+    // Settings
     pub auto_pick: RwLock<AutoPick>,
-    pub picked: RwLock<bool>,
-    // For auto accept
-    pub accepted: RwLock<bool>,
-    pub auto_accepted_delay: RwLock<isize>,
-    // For auto send analysis
-    pub auto_send_analysis: RwLock<bool>,
-    pub analysis_sent_flag: RwLock<bool>,
+    pub auto_accepted_delay: RwLock<i8>,
+    pub auto_send_analysis: AtomicBool,
 }
 
 impl HelperContext {
     pub fn new() -> Self {
-        let ctx = Self::default();
-        *ctx.auto_accepted_delay.write().unwrap() = 3;
-        *ctx.auto_send_analysis.write().unwrap() = true;
-        ctx.auto_pick.write().unwrap().enabled = true;
-        ctx
+        Self {
+            auto_accepted_delay: RwLock::new(3),
+            auto_send_analysis: AtomicBool::new(true),
+            auto_pick: RwLock::new(AutoPick {
+                enabled: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
     }
 
     pub fn reset(&self) {
-        *self.champion_id.write().unwrap() = 0;
+        self.champion_id.store(0, Ordering::Relaxed);
+        self.analysis_sent_flag.store(false, Ordering::Relaxed);
         (*self.my_team.write().unwrap()).clear();
         (*self.subset_champion_list.write().unwrap()).clear();
         self.conversation_id.write().unwrap().clear();
         self.game_mode.write().unwrap().clear();
-        *self.analysis_sent_flag.write().unwrap() = false;
         debug!("HelperContext reset");
+    }
+
+    pub fn from_storage(storage: &dyn eframe::Storage) -> Self {
+        let auto_pick = serde_json::from_str(&storage.get_string("auto_pick").unwrap_or_default())
+            .unwrap_or_default();
+        let auto_accepted_delay = serde_json::from_str(
+            &storage
+                .get_string("auto_accepted_delay")
+                .unwrap_or_default(),
+        )
+        .unwrap_or_default();
+        let auto_send_analysis =
+            serde_json::from_str(&storage.get_string("auto_send_analysis").unwrap_or_default())
+                .unwrap_or_default();
+
+        HelperContext {
+            auto_pick,
+            auto_accepted_delay,
+            auto_send_analysis,
+            ..Default::default()
+        }
     }
 }

@@ -1,11 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 
-use eframe::{
-    App,
-    egui::{
-        self, Align, Checkbox, Color32, CursorIcon, DragValue, FontData, FontDefinitions, Frame,
-        Grid, Id, Label, Layout, Modal, ScrollArea, Separator, Vec2, Widget,
-    },
+use eframe::App;
+use eframe::egui::{
+    self, Align, Checkbox, Color32, CursorIcon, DragValue, FontData, FontDefinitions, Frame, Grid,
+    Id, Label, Layout, Modal, ScrollArea, Separator, Vec2, Widget,
 };
 use log::error;
 use tokio::sync::RwLock;
@@ -34,19 +32,6 @@ pub struct MyApp {
     champion_pick_window_open: bool,
     // modal是否打开
     modal_open: bool,
-}
-
-impl Default for MyApp {
-    fn default() -> Self {
-        Self {
-            ctx: Arc::new(HelperContext::default()),
-            client: Arc::new(RwLock::new(LcuClient::default())),
-            rt: tokio::runtime::Runtime::new().unwrap(),
-            cancel_token: Arc::new(CancellationToken::new()),
-            champion_pick_window_open: false,
-            modal_open: false,
-        }
-    }
 }
 
 /// 在网格中添加标签和控件的宏
@@ -107,6 +92,22 @@ impl App for MyApp {
                 .show(ctx, |ui| self.champion_pick_window(ui));
         }
     }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        // 保存设置到存储
+        storage.set_string(
+            "auto_pick",
+            serde_json::to_string(&*self.ctx.auto_pick.read().unwrap()).unwrap(),
+        );
+        storage.set_string(
+            "auto_accepted_delay",
+            serde_json::to_string(&*self.ctx.auto_accepted_delay.read().unwrap()).unwrap(),
+        );
+        storage.set_string(
+            "auto_send_analysis",
+            serde_json::to_string(&self.ctx.auto_send_analysis.load(Ordering::Relaxed)).unwrap(),
+        );
+    }
 }
 
 #[derive(Default)]
@@ -140,9 +141,20 @@ impl MyApp {
         cc.egui_ctx.set_fonts(fonts);
         cc.egui_ctx.set_zoom_factor(1.5);
 
-        let app = Self::default();
-        app.ctx.auto_pick.write().unwrap().load();
-        app
+        let ctx = if let Some(storage) = cc.storage {
+            HelperContext::from_storage(storage)
+        } else {
+            HelperContext::default()
+        };
+
+        Self {
+            ctx: Arc::new(ctx),
+            rt: tokio::runtime::Runtime::new().unwrap(),
+            client: Arc::new(RwLock::new(LcuClient::default())),
+            cancel_token: Arc::new(CancellationToken::new()),
+            champion_pick_window_open: false,
+            modal_open: false,
+        }
     }
 
     fn setting_panel(&mut self, ui: &mut egui::Ui) {
@@ -181,7 +193,9 @@ impl MyApp {
                     add_grid_row!(
                         ui,
                         Label::new("自动发送消息"),
-                        Checkbox::without_text(&mut self.ctx.auto_send_analysis.write().unwrap())
+                        Checkbox::without_text(
+                            &mut self.ctx.auto_send_analysis.load(Ordering::Relaxed)
+                        )
                     );
                 });
         });
@@ -209,25 +223,25 @@ impl MyApp {
                 ui.add_space(BUTTON_SPACING);
 
                 // 开始/停止按钮
-                let button_text = if *self.ctx.listening.read().unwrap() {
+                let button_text = if self.ctx.listening.load(Ordering::Relaxed) {
                     "停止助手"
                 } else {
                     "启动助手"
                 };
                 if ui.button(button_text).clicked() {
-                    if !*self.ctx.listening.read().unwrap() {
+                    if !self.ctx.listening.load(Ordering::Relaxed) {
                         let client = self.client.clone();
                         let ctx = self.ctx.clone();
                         let cancel_token = self.cancel_token.clone();
                         {
-                            *self.ctx.listening.write().unwrap() = true;
+                            self.ctx.listening.store(true, Ordering::Relaxed);
                         }
                         self.rt.spawn(async move {
                             start_event_listener(client, ctx.clone(), cancel_token)
                                 .await
                                 .unwrap_or_else(|e| {
                                     error!("启动事件监听失败: {e}");
-                                    *ctx.listening.write().unwrap() = false;
+                                    ctx.listening.store(false, Ordering::Relaxed);
                                 })
                         });
                     } else {
@@ -316,7 +330,7 @@ impl MyApp {
                 auto_pick.selected.clear();
             }
             if ui.button("更新可用英雄").clicked() {
-                if !*self.ctx.listening.read().unwrap() {
+                if !self.ctx.listening.load(Ordering::Relaxed) {
                     self.modal_open = true;
                 } else {
                     let client = self.client.clone();
@@ -352,7 +366,6 @@ impl MyApp {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui.button("关闭").clicked() {
                     self.champion_pick_window_open = false;
-                    self.ctx.auto_pick.write().unwrap().save();
                 }
             });
         });

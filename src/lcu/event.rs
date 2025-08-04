@@ -1,3 +1,4 @@
+use crate::types::{CellId, ChampionId, PlayerId, SummonerId};
 use serde::{Deserialize, Deserializer, de::Error};
 use serde_json::Value;
 
@@ -70,13 +71,13 @@ pub enum Event {
     CurrentChampion {
         #[serde(rename = "eventType")]
         event_type: EventType,
-        data: u16, // Champion ID
+        data: ChampionId,
     },
     #[serde(rename = "/lol-lobby-team-builder/champ-select/v1/subset-champion-list")]
     SubsetChampionList {
         #[serde(rename = "eventType")]
         _event_type: EventType,
-        data: Vec<u16>, // Champion IDs
+        data: Vec<ChampionId>,
     },
     #[serde(deserialize_with = "chat_conversation_deserializer")]
     #[serde(untagged)]
@@ -86,18 +87,15 @@ pub enum Event {
     Other(Value),
 }
 
-pub type ChampionId = u16;
-pub type ChampionName = String;
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectData {
     #[serde(deserialize_with = "deserialize_champion_ids")]
-    pub bench_champions: Vec<u16>,
+    pub bench_champions: Vec<ChampionId>,
     pub bench_enabled: bool,
     #[serde(deserialize_with = "unwrap_actions")]
     pub actions: Vec<Action>,
-    pub local_player_cell_id: u8,
+    pub local_player_cell_id: PlayerId,
     pub id: String,
     pub my_team: Vec<ChampSelectPlayer>,
 }
@@ -105,11 +103,11 @@ pub struct ChampSelectData {
 #[derive(Debug, Deserialize)]
 pub struct Action {
     #[serde(rename = "actorCellId")]
-    pub actor_cell_id: u8,
+    pub actor_cell_id: CellId,
     #[serde(rename = "championId")]
-    pub champion_id: u16,
+    pub champion_id: ChampionId,
     pub completed: bool,
-    pub id: u8,
+    pub id: CellId,
     #[serde(rename = "isInProgress")]
     pub is_in_progress: bool,
     #[serde(rename = "type")]
@@ -119,10 +117,10 @@ pub struct Action {
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectPlayer {
     #[serde(default)]
-    pub cell_id: u8,
+    pub cell_id: CellId,
     pub puuid: String,
-    pub summoner_id: u64,
-    pub champion_id: u16,
+    pub summoner_id: SummonerId,
+    pub champion_id: ChampionId,
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,7 +176,7 @@ pub struct ChatConversation {
 }
 
 /// Deserialize champion IDs from a JSON array of objects
-fn deserialize_champion_ids<'de, D>(deserializer: D) -> Result<Vec<u16>, D::Error>
+fn deserialize_champion_ids<'de, D>(deserializer: D) -> Result<Vec<ChampionId>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -186,7 +184,7 @@ where
     #[derive(Deserialize)]
     struct ChampWrapper {
         #[serde(rename = "championId")]
-        champion_id: u16,
+        champion_id: ChampionId,
     }
 
     // 然后提取 champion_id 字段值

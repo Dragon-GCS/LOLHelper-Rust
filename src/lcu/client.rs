@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 
 use super::{
     LcuMeta, LcuUri,
@@ -119,8 +119,8 @@ impl LcuClient {
                     GamePhase::Lobby | GamePhase::None => {
                         ctx.reset();
                     }
-                    GamePhase::Matchmaking if *ctx.accepted.read().unwrap() => {
-                        *ctx.accepted.write().unwrap() = false;
+                    GamePhase::Matchmaking if ctx.accepted.load(Ordering::Relaxed) => {
+                        ctx.accepted.store(false, Ordering::Relaxed);
                     }
                     _ => {}
                 }
@@ -132,7 +132,7 @@ impl LcuClient {
                 _event_type: _,
                 data,
             } => {
-                if !*ctx.accepted.read().unwrap()
+                if !ctx.accepted.load(Ordering::Relaxed)
                     && data.is_some_and(|data| {
                         matches!(data.player_response, MatchReadyResponse::None)
                     })
@@ -159,7 +159,7 @@ impl LcuClient {
                         *my_team = data.my_team.clone();
                     }
                 }
-                if *ctx.auto_send_analysis.read().unwrap()
+                if ctx.auto_send_analysis.load(Ordering::Relaxed)
                     && *ctx.game_mode.read().unwrap() != "TFT"
                 {
                     let ctx = ctx.clone();
@@ -172,7 +172,7 @@ impl LcuClient {
             Event::ChatConversation(data) => match data.event_type {
                 EventType::Create => {
                     *ctx.conversation_id.write().unwrap() = data.id;
-                    *ctx.analysis_sent_flag.write().unwrap() = false;
+                    ctx.analysis_sent_flag.store(false, Ordering::Relaxed);
                 }
                 EventType::Delete => {
                     ctx.conversation_id.write().unwrap().clear();
@@ -181,7 +181,7 @@ impl LcuClient {
             },
             Event::CurrentChampion { event_type, data } => {
                 if event_type == EventType::Create {
-                    *ctx.champion_id.write().unwrap() = data;
+                    ctx.champion_id.store(data, Ordering::Relaxed);
                 }
             }
             Event::Other(_event) => {
@@ -237,8 +237,8 @@ impl LcuClient {
 
     async fn auto_pick(&self, ctx: Arc<HelperContext>, data: ChampSelectData) {
         if !ctx.auto_pick.read().unwrap().enabled
-            || *ctx.picked.read().unwrap()
-            || *ctx.champion_id.read().unwrap() != 0
+            || ctx.picked.load(Ordering::Relaxed)
+            || ctx.champion_id.load(Ordering::Relaxed) != 0
         {
             return;
         }
@@ -257,8 +257,8 @@ impl LcuClient {
                         .is_ok()
                 {
                     info!("自动选择英雄: {}", champion.1);
-                    *ctx.champion_id.write().unwrap() = champion.0;
-                    *ctx.picked.write().unwrap() = true;
+                    ctx.champion_id.store(champion.0, Ordering::Relaxed);
+                    ctx.picked.store(true, Ordering::Relaxed);
                     return;
                 }
             }
@@ -270,8 +270,8 @@ impl LcuClient {
                     && self.swap_champion(champion.0).await.is_ok()
                 {
                     info!("自动选择英雄: {}", champion.1);
-                    *ctx.champion_id.write().unwrap() = champion.0;
-                    *ctx.picked.write().unwrap() = true;
+                    ctx.champion_id.store(champion.0, Ordering::Relaxed);
+                    ctx.picked.store(true, Ordering::Relaxed);
                     return;
                 }
             }
@@ -290,7 +290,7 @@ impl LcuClient {
         for champion in selected.into_iter() {
             if self.pick_champion(champion.0, action.id).await.is_ok() {
                 info!("自动选择英雄: {}", champion.1);
-                *ctx.picked.write().unwrap() = true;
+                ctx.picked.store(true, Ordering::Relaxed);
                 return;
             }
         }
@@ -306,11 +306,11 @@ impl LcuClient {
             error!("自动接受对局失败: {e}");
         });
         info!("对局已自动接受");
-        *ctx.accepted.write().unwrap() = true;
+        ctx.accepted.store(true, Ordering::Relaxed);
     }
 
     async fn analyze_team_players(&self, ctx: Arc<HelperContext>) -> Result<()> {
-        if *ctx.analysis_sent_flag.read().unwrap()
+        if ctx.analysis_sent_flag.load(Ordering::Relaxed)
             || ctx.game_mode.read().unwrap().is_empty()
             || ctx.conversation_id.read().unwrap().is_empty()
         {
@@ -344,7 +344,7 @@ impl LcuClient {
             let msg = format!("{player_score}");
             self.send_message(&conversation_id, &msg).await
         }
-        *ctx.analysis_sent_flag.write().unwrap() = true;
+        ctx.analysis_sent_flag.store(true, Ordering::Relaxed);
         Ok(())
     }
 

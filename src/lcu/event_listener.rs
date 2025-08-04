@@ -1,4 +1,5 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::{Arc, atomic::Ordering};
+use std::time::Duration;
 
 use futures_util::{TryStreamExt, sink::SinkExt};
 use log::{error, info};
@@ -59,7 +60,7 @@ pub async fn start_event_listener(
     }
     if ctx.auto_pick.read().unwrap().unselected.is_empty() {
         let lcu = lcu.clone();
-        let ctx1 = ctx.clone();
+        let ctx = ctx.clone();
         tokio::spawn(async move {
             let champions = lcu
                 .read()
@@ -70,9 +71,8 @@ pub async fn start_event_listener(
                     error!("加载自动选择数据失败: {e}");
                     vec![]
                 });
-            let mut auto_pick = ctx1.auto_pick.write().unwrap();
+            let mut auto_pick = ctx.auto_pick.write().unwrap();
             auto_pick.unselected = champions;
-            auto_pick.save();
         });
     }
     info!("客户端监听已启动");
@@ -104,7 +104,7 @@ pub async fn start_event_listener(
     }
 
     ws.close(CloseCode::Normal, None).await?;
-    *ctx.listening.write().unwrap() = false;
+    ctx.listening.store(false, Ordering::Relaxed);
     info!("客户端监听已停止");
     Ok(())
 }
