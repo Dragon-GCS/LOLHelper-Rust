@@ -8,9 +8,9 @@ use anyhow::anyhow;
 use reqwest_websocket::{CloseCode, Message, RequestBuilderExt};
 use tokio::sync::RwLock;
 
-use super::LcuClient;
 #[cfg(not(debug_assertions))]
 use super::event::SUBSCRIBED_EVENT;
+use super::{LcuClient, default_client};
 use crate::context::HelperContext;
 #[cfg(not(debug_assertions))]
 use log::debug;
@@ -21,17 +21,12 @@ pub async fn start_event_listener(
     cancel_token: Arc<tokio_util::sync::CancellationToken>,
 ) -> anyhow::Result<()> {
     let url = { lcu.write().await.meta.refresh()? };
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
-    let mut ws = client
+    let mut ws = default_client()
         .get(format!("wss://{}", url))
         .timeout(Duration::from_secs(3))
         .upgrade()
         .send()
-        .await
-        .map_err(|_| anyhow!("客户端连接失败，请检查代理是否关闭"))?
+        .await?
         .into_websocket()
         .await?;
 

@@ -24,14 +24,17 @@ pub struct LcuClient {
     pub meta: LcuMeta,
 }
 
+pub fn default_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .no_proxy() // 忽略所有代理设置
+        .build()
+        .expect("Failed to create default LCU client")
+}
+
 impl Default for LcuClient {
     fn default() -> Self {
-        let client = Arc::new(
-            reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .unwrap(),
-        );
+        let client = Arc::new(default_client());
         let meta = LcuMeta::default();
         LcuClient { client, meta }
     }
