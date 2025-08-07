@@ -48,14 +48,14 @@ pub struct HelperContext {
     // Settings
     pub auto_pick: RwLock<AutoPick>,
     pub auto_accepted_delay: RwLock<i8>,
-    pub auto_send_analysis: AtomicBool,
+    pub auto_send_analysis: RwLock<bool>,
 }
 
 impl HelperContext {
     pub fn new() -> Self {
         Self {
             auto_accepted_delay: RwLock::new(3),
-            auto_send_analysis: AtomicBool::new(true),
+            auto_send_analysis: RwLock::new(true),
             auto_pick: RwLock::new(AutoPick {
                 enabled: true,
                 ..Default::default()

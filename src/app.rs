@@ -108,7 +108,7 @@ impl App for MyApp {
         );
         storage.set_string(
             "auto_send_analysis",
-            serde_json::to_string(&self.ctx.auto_send_analysis.load(Ordering::Relaxed)).unwrap(),
+            serde_json::to_string(&*self.ctx.auto_send_analysis.read().unwrap()).unwrap(),
         );
     }
 }
@@ -196,9 +196,7 @@ impl MyApp {
                     add_grid_row!(
                         ui,
                         Label::new("自动发送消息"),
-                        Checkbox::without_text(
-                            &mut self.ctx.auto_send_analysis.load(Ordering::Relaxed)
-                        )
+                        Checkbox::without_text(&mut *self.ctx.auto_send_analysis.write().unwrap())
                     );
                 });
         });

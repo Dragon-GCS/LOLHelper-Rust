@@ -4,7 +4,6 @@ use std::time::Duration;
 use futures_util::{TryStreamExt, sink::SinkExt};
 use log::{error, info};
 
-use anyhow::anyhow;
 use reqwest_websocket::{CloseCode, Message, RequestBuilderExt};
 use tokio::sync::RwLock;
 

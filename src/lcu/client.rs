@@ -162,7 +162,7 @@ impl LcuClient {
                         *my_team = data.my_team.clone();
                     }
                 }
-                if ctx.auto_send_analysis.load(Ordering::Relaxed)
+                if *ctx.auto_send_analysis.read().unwrap()
                     && *ctx.game_mode.read().unwrap() != "TFT"
                 {
                     let ctx = ctx.clone();
