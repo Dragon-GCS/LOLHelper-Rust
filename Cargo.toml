@@ -28,5 +28,8 @@ windows = { version = "0.61.1", features = [
     "Win32_System_Threading",
 ] }
 
+[build-dependencies]
+embed-resource = "3"
+
 [features]
 debug_events = []
