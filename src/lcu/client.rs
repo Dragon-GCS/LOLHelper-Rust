@@ -2,7 +2,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use super::{
     LcuMeta, LcuUri,
-    api_schema::{Match, Matches, MessageBody, PlayerScore},
+    api_schema::{Matches, MessageBody, PlayerScore},
     event::{ChampSelectData, Event, EventMessage, EventType, GamePhase, MatchReadyResponse},
 };
 
@@ -372,17 +372,5 @@ impl LcuClient {
         let mut score = matches.calculate_player_score(game_mode);
         score.set_name(&summoner.game_name);
         Ok(score)
-    }
-}
-
-impl Matches {
-    fn calculate_player_score(self, game_mode: &str) -> PlayerScore {
-        let matches = self
-            .0
-            .into_iter()
-            .filter(|m| m.game_mode == game_mode)
-            .collect::<Vec<Match>>();
-
-        PlayerScore::calculate(matches)
     }
 }

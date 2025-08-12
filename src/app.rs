@@ -188,7 +188,7 @@ impl MyApp {
                         ui,
                         Label::new("自动接受延迟"),
                         DragValue::new(&mut *self.ctx.auto_accepted_delay.write().unwrap())
-                            .range(0.0..=100.0)
+                            .range(0.0..=10.0)
                             .suffix(" s")
                     );
 
@@ -196,7 +196,7 @@ impl MyApp {
                     add_grid_row!(
                         ui,
                         Label::new("自动发送消息"),
-                        Checkbox::without_text(&mut *self.ctx.auto_send_analysis.write().unwrap())
+                        Checkbox::without_text(&mut self.ctx.auto_send_analysis.write().unwrap())
                     );
                 });
         });
