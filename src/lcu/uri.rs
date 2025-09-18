@@ -16,10 +16,8 @@ impl LcuUri {
         format!("/lol-summoner/v2/summoners/puuid/{puuid}")
     }
     pub fn matches(puuid: &str, begin: usize, end: usize) -> String {
-        let beg_idx = begin.to_string();
-        let end_idx = end.to_string();
         format!(
-            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={beg_idx}&endIndex={end_idx}"
+            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begin}&endIndex={end}"
         )
     }
     pub fn bp_champions(action: &str) -> String {

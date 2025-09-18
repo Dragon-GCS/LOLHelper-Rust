@@ -21,11 +21,12 @@ impl MessageBody {
 
 #[derive(Debug, Default)]
 pub struct PlayerScore {
-    name: String,  // 玩家名称
-    kda: f32,      // (击杀 + 助攻) / (死亡 + 1)
-    dpm: f32,      // 分均伤害
-    repeats: i8,   // 大于0表示连胜，否则连败
-    win_rate: f32, // 胜率
+    name: String, // 玩家名称
+    kda: f32,     // (击杀 + 助攻) / (死亡 + 1)
+    dpm: f32,     // 分均伤害
+    repeats: i8,  // 大于0表示连胜，否则连败
+    wins: u32,    // 胜场
+    total: u32,   // 总场次
 }
 
 impl PlayerScore {
@@ -41,11 +42,12 @@ impl Display for PlayerScore {
             f,
             "{}战绩信息：\n\
             kda={:.2}，分均伤害={:.2}\n\
-            胜率={:.2}%, {}{}",
+            胜率={}/{}，{}{}",
             self.name,
             self.kda,
             self.dpm,
-            self.win_rate,
+            self.wins,
+            self.total,
             self.repeats.abs(),
             streak_text
         )
@@ -77,6 +79,7 @@ struct Match {
 
 #[derive(Debug)]
 pub struct Matches(Vec<Match>);
+pub const MAX_MATCHES: usize = 20;
 
 impl Matches {
     pub fn calculate_player_score(self, game_mode: &str) -> PlayerScore {
@@ -118,7 +121,8 @@ impl Matches {
                 0.0
             },
             repeats: if win { repeat } else { -repeat },
-            win_rate: wins as f32 / total as f32 * 100.0,
+            wins,
+            total,
         }
     }
 }

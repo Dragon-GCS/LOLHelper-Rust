@@ -11,6 +11,7 @@ fn main() -> anyhow::Result<()> {
     let icon = include_bytes!("../icon.png");
     let options = NativeOptions {
         viewport: ViewportBuilder::default()
+            .with_title(format!("{APP_NAME} v{}", env!("CARGO_PKG_VERSION")))
             .with_inner_size(WINDOW_SIZE)
             .with_icon(from_png_bytes(icon)?)
             .with_resizable(true),

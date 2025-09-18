@@ -1,8 +1,9 @@
 use std::sync::{Arc, atomic::Ordering};
+use tokio::time::{Duration, sleep};
 
 use super::{
     LcuMeta, LcuUri,
-    api_schema::{Matches, MessageBody, PlayerScore},
+    api_schema::{MAX_MATCHES, Matches, MessageBody, PlayerScore},
     event::{ChampSelectData, Event, EventMessage, EventType, GamePhase, MatchReadyResponse},
 };
 
@@ -12,8 +13,6 @@ use crate::{
 };
 use anyhow::Result;
 
-use futures_util::StreamExt;
-use futures_util::stream::FuturesUnordered;
 use log::{debug, error, info};
 
 use reqwest::Response;
@@ -341,15 +340,11 @@ impl LcuClient {
                 })
                 .collect::<Vec<String>>()
         };
-        let mut tasks = puuids
-            .iter()
-            .map(|puuid| self.analyze_player(puuid, &game_mode))
-            .collect::<FuturesUnordered<_>>();
-
-        while let Some(player_score) = tasks.next().await {
-            let player_score = player_score?;
+        for puuid in puuids {
+            let player_score = self.analyze_player(&puuid, &game_mode).await?;
             let msg = format!("{player_score}");
-            self.send_message(&conversation_id, &msg).await
+            self.send_message(&conversation_id, &msg).await;
+            sleep(Duration::from_secs(1)).await; // 避免发送消息过快
         }
         ctx.analysis_sent_flag.store(true, Ordering::Relaxed);
         Ok(())
@@ -357,18 +352,18 @@ impl LcuClient {
 
     async fn get_matches(&self, puuid: &str, begin: usize, num: usize) -> Result<Matches> {
         let response = self
-            .get(&LcuUri::matches(puuid, begin, begin + num))
+            .get(&LcuUri::matches(puuid, begin, begin + num - 1))
             .await?;
         Ok(response.json::<Matches>().await?)
     }
 
-    async fn analyze_player(&self, puuid: &str, game_mode: &str) -> Result<PlayerScore> {
+    pub async fn analyze_player(&self, puuid: &str, game_mode: &str) -> Result<PlayerScore> {
         let summoner = self
             .get(&LcuUri::summoners_by_puuid(puuid))
             .await?
             .json::<Summoner>()
             .await?;
-        let matches = self.get_matches(puuid, 0, 20).await?;
+        let matches = self.get_matches(puuid, 0, MAX_MATCHES).await?;
         let mut score = matches.calculate_player_score(game_mode);
         score.set_name(&summoner.game_name);
         Ok(score)
