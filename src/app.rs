@@ -31,6 +31,8 @@ pub struct MyApp {
     champion_pick_window_open: bool,
     // modal是否打开
     modal_open: bool,
+    // 搜索关键词
+    search_text: String,
 }
 
 /// 在网格中添加标签和控件的宏
@@ -157,6 +159,7 @@ impl MyApp {
             cancel_token: Arc::new(CancellationToken::new()),
             champion_pick_window_open: false,
             modal_open: false,
+            search_text: String::new(),
         }
     }
 
@@ -274,6 +277,12 @@ impl MyApp {
 
     fn champion_pick_window(&mut self, ui: &mut egui::Ui) {
         let mut state = ChampionPickState::default();
+        ui.horizontal(|ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.text_edit_singleline(&mut self.search_text);
+                ui.label("搜索：");
+            });
+        });
 
         ui.columns(2, |uis| {
             let (left, right) = uis.split_at_mut(1);
@@ -281,7 +290,7 @@ impl MyApp {
 
             // 左侧：未选中英雄列表
             render_champion_list!(left, "可用英雄", |ui| {
-                for (idx, name) in self
+                for (idx, champion) in self
                     .ctx
                     .auto_pick
                     .read()
@@ -290,10 +299,12 @@ impl MyApp {
                     .iter()
                     .enumerate()
                 {
-                    if ui
-                        .label(name.1.clone())
-                        .on_hover_cursor(CursorIcon::PointingHand)
-                        .clicked()
+                    let name = champion.1.clone();
+                    if name.contains(&self.search_text)
+                        && ui
+                            .label(name)
+                            .on_hover_cursor(CursorIcon::PointingHand)
+                            .clicked()
                     {
                         state.select_index = Some(idx);
                     }
@@ -346,15 +357,14 @@ impl MyApp {
                                 error!("获取英雄列表失败: {e}");
                                 vec![]
                             });
-                        let selected = {
-                            ctx.auto_pick
-                                .read()
-                                .unwrap()
-                                .selected
-                                .iter()
-                                .map(|champ| champ.0)
-                                .collect::<Vec<u16>>()
-                        };
+                        let selected = ctx
+                            .auto_pick
+                            .read()
+                            .unwrap()
+                            .selected
+                            .iter()
+                            .map(|champ| champ.0)
+                            .collect::<Vec<u16>>();
                         let mut auto_pick = ctx.auto_pick.write().unwrap();
                         auto_pick.unselected = champions
                             .into_iter()

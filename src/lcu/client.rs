@@ -3,7 +3,7 @@ use tokio::time::{Duration, sleep};
 
 use super::{
     LcuMeta, LcuUri,
-    api_schema::{MAX_MATCHES, Matches, MessageBody, PlayerScore},
+    api_schema::{MAX_MATCHES, Matches, MessageBody, OwnedChampionRow, PlayerScore},
     event::{ChampSelectData, Event, EventMessage, EventType, GamePhase, MatchReadyResponse},
 };
 
@@ -16,7 +16,6 @@ use anyhow::Result;
 use log::{debug, error, info};
 
 use reqwest::Response;
-use serde_json::Value;
 
 pub struct LcuClient {
     pub client: Arc<reqwest::Client>,
@@ -109,7 +108,7 @@ impl LcuClient {
                 _event_type: _,
                 data,
             } => {
-                #[cfg(all(debug_assertions, feature = "debug_events"))]
+                #[cfg(feature = "debug_events")]
                 if let GamePhase::Other = data.phase {
                     debug!("Unknown GamePhase: {message}")
                 }
@@ -213,18 +212,10 @@ impl LcuClient {
 
     pub async fn get_owned_champions(&self) -> Result<Vec<Champion>> {
         let response = self.get(LcuUri::OWNED_CHAMPIONS).await?;
-        let data = response.json::<Vec<Value>>().await?;
+        let data = response.json::<Vec<OwnedChampionRow>>().await?;
         let champions = data
             .into_iter()
-            .filter_map(|champion| {
-                match (
-                    champion.get("id").and_then(|v| v.as_u64()),
-                    champion.get("name").and_then(|v| v.as_str()),
-                ) {
-                    (Some(id), Some(name)) => Some(Champion(id as u16, name.to_string())),
-                    _ => None,
-                }
-            })
+            .map(|champion| Champion(champion.id, format!("{}-{}", champion.name, champion.title)))
             .collect();
         Ok(champions)
     }

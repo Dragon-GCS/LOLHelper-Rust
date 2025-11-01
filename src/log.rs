@@ -86,7 +86,7 @@ pub fn init_logger() {
             .build("lcu_helper::log", LevelFilter::Warn);
         let client_logger = Logger::builder()
             .appender("file")
-            .build("lcu_helper::client", LevelFilter::Trace);
+            .build("lcu_helper::lcu::client", LevelFilter::Trace);
         builder
             .appender(Appender::builder().build("file", Box::new(log_file)))
             .logger(log_loger)

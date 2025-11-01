@@ -3,6 +3,8 @@ use std::fmt::Display;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
+use crate::types::ChampionId;
+
 #[derive(serde::Serialize)]
 pub struct MessageBody {
     body: String,
@@ -164,4 +166,11 @@ where
         .next()
         .map(|p| p.stats)
         .ok_or_else(|| D::Error::custom("No participants found"))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OwnedChampionRow {
+    pub id: ChampionId,
+    pub name: String,
+    pub title: String,
 }
