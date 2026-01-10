@@ -38,20 +38,20 @@ impl Default for LcuClient {
     }
 }
 impl LcuClient {
-    pub fn host_url(&self) -> &str {
-        &self.meta.host_url
-    }
-
     async fn request<T: serde::Serialize>(
         &self,
         method: reqwest::Method,
         api: &str,
         body: Option<&T>,
     ) -> Result<Response> {
-        let url = self.host_url();
-        let mut req = self.client.request(method, format!("https://{url}{api}"));
+        let url = format!("https://127.0.0.1:{}{}", self.meta.port, api);
+        let mut req = self
+            .client
+            .request(method, url)
+            .header("Content-Type", "application/json")
+            .basic_auth("riot", Some(&self.meta.token));
         if let Some(body) = body {
-            req = req.header("Content-Type", "application/json").json(body);
+            req = req.json(body);
         };
         let r = req.send().await?;
         if !r.status().is_success() {

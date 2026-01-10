@@ -34,9 +34,8 @@ const LCU_PROCESS_NAME: &str = "LeagueClientUx.exe";
 #[derive(Debug, Default)]
 pub struct LcuMeta {
     pid: u32,
-    port: u16,
-    token: String,
-    pub host_url: String,
+    pub port: u16,
+    pub token: String,
 }
 
 impl LcuMeta {
@@ -48,7 +47,7 @@ impl LcuMeta {
     /// 首先调用 OpenProcess 获取进程句柄
     /// 然后第一次调用 NtQueryInformationProcess 获取命令参数的长度
     /// 然后分配一个缓冲区，第二次调用 NtQueryInformationProcess 获取命令参数
-    pub fn refresh(&mut self) -> Result<String, HelperError> {
+    pub fn refresh(&mut self) -> Result<(), HelperError> {
         let output = Command::new("wmic")
             .args([
                 "process",
@@ -67,9 +66,9 @@ impl LcuMeta {
             .next()
             .ok_or(HelperError::ClientNotFound)?;
 
-        if pid == self.pid && !self.host_url.is_empty() {
+        if pid == self.pid {
             debug!("客户端进程未变更, PID: {}", pid);
-            return Ok(self.host_url.clone());
+            return Ok(());
         }
         self.pid = pid;
         debug!("客户端进程ID: {}", pid);
@@ -133,9 +132,8 @@ impl LcuMeta {
             return Err(HelperError::ClientNotFound);
         }
 
-        self.host_url = format!("riot:{}@127.0.0.1:{}", self.token, self.port);
-        info!("客户端URL: {}", self.host_url);
-        Ok(self.host_url.clone())
+        info!("客户端URL: riot:{}@127.0.0.1:{}", self.token, self.port);
+        Ok(())
     }
 }
 

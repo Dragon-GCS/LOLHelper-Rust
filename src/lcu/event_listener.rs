@@ -19,9 +19,12 @@ pub async fn start_event_listener(
     ctx: Arc<HelperContext>,
     cancel_token: Arc<tokio_util::sync::CancellationToken>,
 ) -> anyhow::Result<()> {
-    let url = { lcu.write().await.meta.refresh()? };
+    lcu.write().await.meta.refresh()?;
+    let port = lcu.read().await.meta.port;
+    let token = lcu.read().await.meta.token.clone();
     let mut ws = default_client()
-        .get(format!("wss://{}", url))
+        .get(format!("wss://127.0.0.1:{}", port))
+        .basic_auth("riot", Some(&token))
         .timeout(Duration::from_secs(3))
         .upgrade()
         .send()
