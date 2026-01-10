@@ -1,4 +1,4 @@
-mod api_schema;
+mod api;
 mod client;
 mod event;
 mod event_listener;
