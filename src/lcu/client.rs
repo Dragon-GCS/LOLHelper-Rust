@@ -1,14 +1,14 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::Arc;
 
 use super::{
     LcuMeta,
-    event::{Event, EventMessage, EventType, GamePhase, MatchReadyResponse},
+    event::{Event, EventMessage},
 };
 
 use crate::{context::HelperContext, errors::HelperError};
 use anyhow::Result;
 
-use log::{debug, error, info};
+use log::debug;
 
 use reqwest::Response;
 
@@ -100,83 +100,26 @@ impl LcuClient {
             Event::GameFlowSession {
                 _event_type: _,
                 data,
-            } => {
-                #[cfg(feature = "debug_events")]
-                if let GamePhase::Other = data.phase {
-                    debug!("Unknown GamePhase: {message}")
-                }
-                // 在 if 语句中使用 read 锁，避免长时间持有锁导致死锁
-                if *ctx.game_phase.read().unwrap() == data.phase {
-                    return Ok(());
-                }
-                match &data.phase {
-                    GamePhase::Lobby | GamePhase::None => {
-                        ctx.reset();
-                    }
-                    GamePhase::Matchmaking if ctx.accepted.load(Ordering::Relaxed) => {
-                        ctx.accepted.store(false, Ordering::Relaxed);
-                    }
-                    _ => {}
-                }
-                info!("当前客户端状态：{:?}", &data.phase);
-                *ctx.game_phase.write().unwrap() = data.phase;
-                *ctx.game_mode.write().unwrap() = data.map.game_mode;
-            }
+            } => self.handle_game_flow_event(data, ctx).await?,
             Event::MatchmakingReadyCheck {
                 _event_type: _,
                 data,
-            } => {
-                if !ctx.accepted.load(Ordering::Relaxed)
-                    && data.is_some_and(|data| {
-                        matches!(data.player_response, MatchReadyResponse::None)
-                    })
-                {
-                    self.auto_accept(ctx).await;
-                }
-            }
+            } => self.handle_matchmaking_ready_check_event(data, ctx).await?,
             Event::LobbyTeamBuilderMatchmaking {
                 _event_type: _,
-                data: _,
-            } => {}
+                data,
+            } => self.handle_lobby_matchmaking_event(data, ctx).await?,
             Event::SubsetChampionList { _event_type, data } => {
-                if ctx.subset_champion_list.read().unwrap().is_empty() {
-                    *ctx.subset_champion_list.write().unwrap() = data;
-                }
+                self.handle_subset_champion_list_event(data, ctx).await?
             }
             Event::ChampSelectSession {
                 _event_type: _,
                 data,
-            } => {
-                if ctx.my_team.read().unwrap().is_empty() && !data.my_team.is_empty() {
-                    {
-                        let mut my_team = ctx.my_team.write().unwrap();
-                        *my_team = data.my_team.clone();
-                    }
-                }
-                if *ctx.auto_send_analysis.read().unwrap()
-                    && *ctx.game_mode.read().unwrap() != "TFT"
-                {
-                    let ctx = ctx.clone();
-                    self.analyze_team_players(ctx).await.unwrap_or_else(|e| {
-                        error!("Failed to analyze team players: {e}");
-                    });
-                }
-                self.auto_pick(ctx, data).await;
-            }
-            Event::ChatConversation(data) => match data.event_type {
-                EventType::Create => {
-                    *ctx.conversation_id.write().unwrap() = data.id;
-                    ctx.analysis_sent_flag.store(false, Ordering::Relaxed);
-                }
-                EventType::Delete => {
-                    ctx.conversation_id.write().unwrap().clear();
-                }
-                _ => {}
-            },
+            } => self.handle_champ_select_event(data, ctx).await?,
+            Event::ChatConversation(data) => self.handle_chat_conversation_event(data, ctx).await?,
             Event::CurrentChampion { event_type, data } => {
-                if event_type == EventType::Create {
-                    ctx.champion_id.store(data, Ordering::Relaxed);
-                }
+                self.handle_current_champion_event(event_type, data, ctx)
+                    .await?
             }
             Event::Other(_event) => {
                 #[cfg(feature = "debug_events")]

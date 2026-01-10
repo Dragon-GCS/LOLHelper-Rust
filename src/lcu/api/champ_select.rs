@@ -7,7 +7,7 @@ use reqwest::Response;
 
 use crate::{
     context::HelperContext,
-    lcu::{event::ChampSelectData, LcuClient, LcuUri},
+    lcu::{LcuClient, LcuUri, events::champ_select::ChampSelectData},
 };
 
 impl LcuClient {
