@@ -7,17 +7,20 @@ use reqwest::Response;
 
 use crate::{
     context::HelperContext,
-    lcu::{LcuClient, LcuUri, events::champ_select::ChampSelectData},
+    lcu::{LcuClient, events::champ_select::ChampSelectData},
 };
 
 impl LcuClient {
     async fn swap_champion(&self, champion_id: u16) -> Result<Response> {
-        self.post(&LcuUri::swap_champion(champion_id)).await
+        self.post(&format!(
+            "/lol-champ-select/v1/session/bench/swap/{champion_id}"
+        ))
+        .await
     }
 
     async fn pick_champion(&self, champion_id: u16, action_id: u8) -> Result<Response> {
         self.patch_json(
-            &LcuUri::bp_champions(&action_id.to_string()),
+            &format!("/lol-champ-select/v1/session/actions/{action_id}"),
             &serde_json::json!({"completed": true, "type": "pick", "championId": champion_id}),
         )
         .await

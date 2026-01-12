@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::lcu::{LcuClient, LcuUri};
+use crate::lcu::LcuClient;
 
 #[derive(serde::Serialize)]
 pub struct MessageBody {
@@ -22,7 +22,7 @@ impl LcuClient {
     pub(crate) async fn send_message(&self, conversation_id: &str, message: &str) {
         let _ = self
             .post_json(
-                &LcuUri::conversation_message(conversation_id),
+                &format!("/lol-chat/v1/conversations/{conversation_id}/messages"),
                 &MessageBody::message(message),
             )
             .await

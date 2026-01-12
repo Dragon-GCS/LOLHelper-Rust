@@ -8,7 +8,7 @@ use tokio::time::{Duration, sleep};
 
 use crate::{
     context::{HelperContext, Summoner},
-    lcu::{LcuClient, LcuUri},
+    lcu::LcuClient,
 };
 
 #[derive(Debug, Default)]
@@ -162,15 +162,18 @@ where
 
 impl LcuClient {
     async fn get_matches(&self, puuid: &str, begin: usize, num: usize) -> Result<Matches> {
+        let end = begin + num - 1;
         let response = self
-            .get(&LcuUri::matches(puuid, begin, begin + num - 1))
+            .get(&format!(
+                "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begin}&endIndex={end}"
+            ))
             .await?;
         Ok(response.json::<Matches>().await?)
     }
 
     pub async fn analyze_player(&self, puuid: &str, game_mode: &str) -> Result<PlayerScore> {
         let summoner = self
-            .get(&LcuUri::summoners_by_puuid(puuid))
+            .get(&format!("/lol-summoner/v2/summoners/puuid/{puuid}"))
             .await?
             .json::<Summoner>()
             .await?;

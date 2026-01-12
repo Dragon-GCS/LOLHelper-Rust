@@ -5,12 +5,14 @@ use log::{debug, error, info};
 
 use crate::{
     context::{HelperContext, Summoner},
-    lcu::{LcuClient, LcuUri},
+    lcu::LcuClient,
 };
+
+const CURRENT_SUMMONER_API: &str = "/lol-summoner/v1/current-summoner";
 
 impl LcuClient {
     pub async fn update_summoner_info(&self, ctx: Arc<HelperContext>) -> Result<()> {
-        let response = self.get(LcuUri::ME).await?;
+        let response = self.get(CURRENT_SUMMONER_API).await?;
         let data = response.json::<Summoner>().await;
         if let Err(e) = &data {
             error!("Failed to parse summoner info: {e}");
