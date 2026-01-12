@@ -1,11 +1,8 @@
 use std::sync::{Arc, atomic::Ordering};
 
-use anyhow::Result;
+use crate::lcu::Result;
 
-use crate::{
-    context::HelperContext,
-    lcu::LcuClient,
-};
+use crate::{context::HelperContext, lcu::LcuClient};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

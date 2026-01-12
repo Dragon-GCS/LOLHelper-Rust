@@ -18,6 +18,7 @@ impl LcuClient {
             log::error!("自动接受对局失败: {e}");
         });
         info!("对局已自动接受");
-        ctx.accepted.store(true, std::sync::atomic::Ordering::Relaxed);
+        ctx.accepted
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }

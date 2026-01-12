@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use anyhow::Context;
 use eframe::icon_data::from_png_bytes;
 use eframe::{NativeOptions, egui::ViewportBuilder};
 use lcu_helper::{app::MyApp, log::init_logger};
@@ -13,7 +14,7 @@ fn main() -> anyhow::Result<()> {
         viewport: ViewportBuilder::default()
             .with_title(format!("{APP_NAME} v{}", env!("CARGO_PKG_VERSION")))
             .with_inner_size(WINDOW_SIZE)
-            .with_icon(from_png_bytes(icon)?)
+            .with_icon(from_png_bytes(icon).context("Failed to load")?)
             .with_resizable(true),
         ..Default::default()
     };

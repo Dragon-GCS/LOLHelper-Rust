@@ -7,7 +7,7 @@ use std::ptr::null_mut;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
-use crate::errors::HelperError;
+use crate::lcu::{LcuError, Result};
 
 #[repr(C)]
 struct UnicodeString {
@@ -47,7 +47,7 @@ impl LcuMeta {
     /// 首先调用 OpenProcess 获取进程句柄
     /// 然后第一次调用 NtQueryInformationProcess 获取命令参数的长度
     /// 然后分配一个缓冲区，第二次调用 NtQueryInformationProcess 获取命令参数
-    pub fn refresh(&mut self) -> Result<(), HelperError> {
+    pub fn refresh(&mut self) -> Result<()> {
         let output = Command::new("wmic")
             .args([
                 "process",
@@ -64,7 +64,7 @@ impl LcuMeta {
             .lines()
             .filter_map(|line| line.trim().parse::<u32>().ok())
             .next()
-            .ok_or(HelperError::ClientNotFound)?;
+            .ok_or(LcuError::ClientNotFound)?;
 
         if pid == self.pid {
             debug!("客户端进程未变更, PID: {}", pid);
@@ -75,7 +75,7 @@ impl LcuMeta {
 
         let cmdline = unsafe {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, self.pid)
-                .map_err(|_| HelperError::ClientNotFound)?;
+                .map_err(|_| LcuError::ClientNotFound)?;
 
             let mut buf_len: u32 = 0;
             // 获取命令参数的长度
@@ -89,7 +89,7 @@ impl LcuMeta {
             if buf_len == 0 && status != 0xc0000004 {
                 CloseHandle(handle).unwrap_unchecked();
                 error!("获取命令行参数长度失败, {buf_len}, {status:x}");
-                return Err(HelperError::ClientNotFound);
+                return Err(LcuError::ClientCMDLineFailed);
             }
             let mut buffer = vec![0u8; buf_len as usize];
             let status = NtQueryInformationProcess(
@@ -102,7 +102,7 @@ impl LcuMeta {
             if status != 0 {
                 CloseHandle(handle).unwrap_unchecked();
                 error!("获取命令行参数失败, {status:x}");
-                return Err(HelperError::ClientCMDLineFailed);
+                return Err(LcuError::ClientCMDLineFailed);
             }
 
             // 解析 UNICODE_STRING
@@ -129,7 +129,7 @@ impl LcuMeta {
 
         if self.token.is_empty() && self.port == 0 {
             error!("未找到客户端端口和Token");
-            return Err(HelperError::ClientNotFound);
+            return Err(LcuError::ClientNotFound);
         }
 
         info!("客户端URL: riot:{}@127.0.0.1:{}", self.token, self.port);

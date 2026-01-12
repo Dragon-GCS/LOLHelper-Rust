@@ -5,8 +5,10 @@ use super::{
     event::{Event, EventMessage},
 };
 
-use crate::{context::HelperContext, errors::HelperError};
-use anyhow::Result;
+use crate::{
+    context::HelperContext,
+    lcu::{LcuError, Result},
+};
 
 use log::debug;
 
@@ -57,7 +59,7 @@ impl LcuClient {
                 .await
                 .unwrap_or_else(|e| format!("Unknown error: {e}"));
             debug!("请求API({api})失败: {text}");
-            Err(HelperError::ResponseError(text).into())
+            Err(LcuError::ResponseError(text))
         } else {
             Ok(r)
         }

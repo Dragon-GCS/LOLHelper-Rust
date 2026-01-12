@@ -1,11 +1,11 @@
 use std::sync::{Arc, atomic::Ordering};
 
-use anyhow::Result;
+use crate::lcu::Result;
 use log::error;
 
 use crate::{
     context::HelperContext,
-    lcu::{event::EventType, LcuClient},
+    lcu::{LcuClient, event::EventType},
     types::{CellId, ChampionId, PlayerId, SummonerId},
 };
 use serde::{Deserialize, Deserializer};
@@ -47,7 +47,9 @@ pub struct ChampSelectPlayer {
 }
 
 /// Deserialize champion IDs from a JSON array of objects
-fn deserialize_champion_ids<'de, D>(deserializer: D) -> Result<Vec<ChampionId>, D::Error>
+fn deserialize_champion_ids<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Vec<ChampionId>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -63,7 +65,7 @@ where
     Ok(wrappers.into_iter().map(|w| w.champion_id).collect())
 }
 
-fn unwrap_actions<'de, D>(deserializer: D) -> Result<Vec<Action>, D::Error>
+fn unwrap_actions<'de, D>(deserializer: D) -> std::result::Result<Vec<Action>, D::Error>
 where
     D: Deserializer<'de>,
 {

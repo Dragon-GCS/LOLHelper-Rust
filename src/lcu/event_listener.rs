@@ -9,8 +9,9 @@ use tokio::sync::RwLock;
 
 #[cfg(not(debug_assertions))]
 use super::event::SUBSCRIBED_EVENT;
-use super::{LcuClient, default_client};
 use crate::context::HelperContext;
+use crate::lcu::Result;
+use crate::lcu::{LcuClient, default_client};
 #[cfg(not(debug_assertions))]
 use log::debug;
 
@@ -18,7 +19,7 @@ pub async fn start_event_listener(
     lcu: Arc<RwLock<LcuClient>>,
     ctx: Arc<HelperContext>,
     cancel_token: Arc<tokio_util::sync::CancellationToken>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     lcu.write().await.meta.refresh()?;
     let port = lcu.read().await.meta.port;
     let token = lcu.read().await.meta.token.clone();

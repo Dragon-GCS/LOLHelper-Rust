@@ -1,6 +1,6 @@
 use std::sync::{Arc, atomic::Ordering};
 
-use anyhow::Result;
+use crate::lcu::Result;
 use log::info;
 
 use crate::{context::HelperContext, lcu::ChampSelectPlayer, lcu::LcuClient};

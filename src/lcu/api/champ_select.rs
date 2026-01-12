@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use anyhow::Result;
+use crate::lcu::Result;
 use log::info;
 use reqwest::Response;
 

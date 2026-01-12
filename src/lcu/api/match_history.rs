@@ -1,6 +1,6 @@
 use std::{fmt::Display, sync::Arc, sync::atomic::Ordering};
 
-use anyhow::Result;
+use crate::lcu::Result;
 use log::info;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
@@ -120,7 +120,7 @@ impl Matches {
 }
 
 impl<'de> Deserialize<'de> for Matches {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -141,7 +141,9 @@ impl<'de> Deserialize<'de> for Matches {
     }
 }
 
-fn deserialize_status_from_participants<'de, D>(deserializer: D) -> Result<Status, D::Error>
+fn deserialize_status_from_participants<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Status, D::Error>
 where
     D: Deserializer<'de>,
 {

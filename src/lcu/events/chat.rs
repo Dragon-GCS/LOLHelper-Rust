@@ -1,12 +1,10 @@
 use std::sync::{Arc, atomic::Ordering};
 
-use anyhow::Result;
-
 use crate::{
     context::HelperContext,
-    lcu::{event::EventType, LcuClient},
+    lcu::{LcuClient, Result, event::EventType},
 };
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::Error};
 
 #[derive(Debug, Deserialize)]
 pub struct ChatConversation {
@@ -15,7 +13,9 @@ pub struct ChatConversation {
 }
 
 /// Deserialize ChatConversation event
-pub(crate) fn chat_conversation_deserializer<'de, D>(deserializer: D) -> Result<ChatConversation, D::Error>
+pub(crate) fn chat_conversation_deserializer<'de, D>(
+    deserializer: D,
+) -> std::result::Result<ChatConversation, D::Error>
 where
     D: Deserializer<'de>,
 {

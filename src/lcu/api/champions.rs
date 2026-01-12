@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::lcu::Result;
 
 use crate::{
     context::Champion,
