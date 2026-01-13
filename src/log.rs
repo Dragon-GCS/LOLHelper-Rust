@@ -1,12 +1,7 @@
 use chrono::{DateTime, Local};
-use log::LevelFilter;
 use log4rs::Config;
 use log4rs::append::Append;
-use log4rs::append::console::{ConsoleAppender, Target};
-#[cfg(debug_assertions)]
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Logger, Root};
-use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Deserialize, Deserializers, RawConfig};
 use std::fmt::Display;
 use std::{collections::VecDeque, sync::RwLock};
 
@@ -50,52 +45,56 @@ impl Append for UILogsAppender {
     fn flush(&self) {}
 }
 
+#[derive(serde::Deserialize)]
+pub struct UILogsAppenderConfig {
+    pub max_size: Option<usize>,
+}
+
+#[derive(Default)]
+pub struct UILogsAppenderDeserializer;
+
+impl Deserialize for UILogsAppenderDeserializer {
+    type Trait = dyn Append;
+
+    type Config = UILogsAppenderConfig;
+
+    fn deserialize(
+        &self,
+        config: UILogsAppenderConfig,
+        _: &Deserializers,
+    ) -> anyhow::Result<Box<Self::Trait>> {
+        let max_size = config.max_size.unwrap_or(10000);
+        let appender = UILogsAppender(max_size);
+        Ok(Box::new(appender))
+    }
+}
+
+// Copy code from log4rs/src/config/file.rs:deserialize
+fn deserialize(config: &RawConfig, deserializers: &Deserializers) -> Config {
+    let (appenders, mut errors) = config.appenders_lossy(deserializers);
+    errors.handle();
+
+    let (config, mut errors) = Config::builder()
+        .appenders(appenders)
+        .loggers(config.loggers())
+        .build_lossy(config.root());
+
+    errors.handle();
+
+    config
+}
+
 pub fn init_logger() {
-    let encoder = PatternEncoder::new(
-        "{h({d(%Y-%m-%d %H:%M:%S.%f)(local):.23})} | {h({l}):>5} | {M}:{L} - {m}{n}",
-    );
-    let console = ConsoleAppender::builder()
-        .target(Target::Stdout)
-        .encoder(Box::new(encoder.clone()))
-        .build();
-
     #[cfg(debug_assertions)]
-    let (max_size, lcu_logger_level) = { (1024, LevelFilter::Trace) };
+    let config_str = include_str!("./log_config.dev.toml");
     #[cfg(not(debug_assertions))]
-    let (max_size, lcu_logger_level) = { (10240, LevelFilter::Info) };
+    let config_str = include_str!("./log_config.toml");
+    let mut deserializers = Deserializers::default();
+    deserializers.insert("ui_logs", UILogsAppenderDeserializer);
 
-    let ui_log = UILogsAppender(max_size);
-    let lcu_logger = Logger::builder()
-        .appenders(vec!["console", "ui_logs"])
-        .build("lcu_helper", lcu_logger_level);
+    let raw_config: RawConfig = ::toml::from_str(config_str).unwrap();
+    let config = deserialize(&raw_config, &deserializers);
 
-    let builder = Config::builder()
-        .appender(Appender::builder().build("console", Box::new(console)))
-        .appender(Appender::builder().build("ui_logs", Box::new(ui_log)))
-        .logger(lcu_logger);
-
-    #[cfg(debug_assertions)]
-    let builder = {
-        // 添加文件记录event详情
-        let log_file = FileAppender::builder()
-            .encoder(Box::new(encoder))
-            .build("log/debug.log")
-            .unwrap();
-        let log_loger = Logger::builder()
-            .appender("ui_logs")
-            .build("lcu_helper::log", LevelFilter::Warn);
-        let client_logger = Logger::builder()
-            .appender("file")
-            .build("lcu_helper::lcu::client", LevelFilter::Trace);
-        builder
-            .appender(Appender::builder().build("file", Box::new(log_file)))
-            .logger(log_loger)
-            .logger(client_logger)
-    };
-
-    let config = builder
-        .build(Root::builder().build(lcu_logger_level))
-        .unwrap();
     log4rs::init_config(config).unwrap();
 }
 
