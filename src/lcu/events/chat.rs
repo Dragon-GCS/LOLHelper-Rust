@@ -2,7 +2,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use crate::{
     context::HelperContext,
-    lcu::{LcuClient, Result, event::EventType},
+    lcu::{LcuClient, Result, events::EventType},
 };
 use serde::{Deserialize, Deserializer, de::Error};
 

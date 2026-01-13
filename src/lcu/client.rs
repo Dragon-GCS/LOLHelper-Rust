@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use super::{
-    LcuMeta,
-    event::{Event, EventMessage},
-};
+use super::{Event, LcuMeta};
 
 use crate::{
     context::HelperContext,
@@ -96,9 +93,10 @@ impl LcuClient {
             return Ok(());
         }
 
-        let event = serde_json::from_str::<EventMessage>(&message)?;
+        // [8, "OnJsonEvent", event]
+        let (_code, _event_type, event): (u8, String, Event) = serde_json::from_str(&message)?;
 
-        match event.2 {
+        match event {
             Event::GameFlowSession {
                 _event_type: _,
                 data,

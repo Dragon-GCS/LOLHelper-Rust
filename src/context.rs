@@ -1,5 +1,4 @@
 use crate::lcu::{ChampSelectPlayer, GamePhase};
-use crate::types::{ChampionId, ChampionName, SummonerId};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
@@ -12,14 +11,15 @@ pub struct Summoner {
     #[serde(rename = "gameName")]
     pub game_name: String,
     #[serde(rename = "summonerId")]
-    pub summoner_id: SummonerId,
+    pub summoner_id: u64,
     #[serde(rename = "summonerLevel")]
     pub summoner_level: u16,
     pub puuid: String,
 }
 
+// champion id and champion name
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Champion(pub ChampionId, pub ChampionName);
+pub struct Champion(pub u16, pub String);
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AutoPick {
@@ -40,7 +40,7 @@ pub struct HelperContext {
     pub conversation_id: RwLock<String>,
 
     // For auto pick champion
-    pub subset_champion_list: RwLock<Vec<ChampionId>>,
+    pub subset_champion_list: RwLock<Vec<u16>>,
     // flags
     pub picked: AtomicBool,
     pub accepted: AtomicBool,

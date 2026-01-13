@@ -5,8 +5,7 @@ use log::error;
 
 use crate::{
     context::HelperContext,
-    lcu::{LcuClient, event::EventType},
-    types::{CellId, ChampionId, PlayerId, SummonerId},
+    lcu::{LcuClient, events::EventType},
 };
 use serde::{Deserialize, Deserializer};
 
@@ -14,11 +13,11 @@ use serde::{Deserialize, Deserializer};
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectData {
     #[serde(deserialize_with = "deserialize_champion_ids")]
-    pub bench_champions: Vec<ChampionId>,
+    pub bench_champions: Vec<u16>, // Vec<ChampionId>
     pub bench_enabled: bool,
     #[serde(deserialize_with = "unwrap_actions")]
     pub actions: Vec<Action>,
-    pub local_player_cell_id: PlayerId,
+    pub local_player_cell_id: u8, // cell_id
     // pub id: String,
     pub my_team: Vec<ChampSelectPlayer>,
 }
@@ -26,11 +25,11 @@ pub struct ChampSelectData {
 #[derive(Debug, Deserialize)]
 pub struct Action {
     #[serde(rename = "actorCellId")]
-    pub actor_cell_id: CellId,
+    pub actor_cell_id: u8,
     #[serde(rename = "championId")]
-    pub champion_id: ChampionId,
+    pub champion_id: u16,
     pub completed: bool,
-    pub id: CellId,
+    pub id: u8, // cell_id
     #[serde(rename = "isInProgress")]
     pub is_in_progress: bool,
     #[serde(rename = "type")]
@@ -40,16 +39,14 @@ pub struct Action {
 #[serde(rename_all = "camelCase")]
 pub struct ChampSelectPlayer {
     #[serde(default)]
-    pub cell_id: CellId,
+    pub cell_id: u8,
     pub puuid: String,
-    pub summoner_id: SummonerId,
-    pub champion_id: ChampionId,
+    pub summoner_id: u64,
+    pub champion_id: u16,
 }
 
 /// Deserialize champion IDs from a JSON array of objects
-fn deserialize_champion_ids<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Vec<ChampionId>, D::Error>
+fn deserialize_champion_ids<'de, D>(deserializer: D) -> std::result::Result<Vec<u16>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -57,7 +54,7 @@ where
     #[derive(Deserialize)]
     struct ChampWrapper {
         #[serde(rename = "championId")]
-        champion_id: ChampionId,
+        champion_id: u16,
     }
 
     // 然后提取 champion_id 字段值
@@ -101,7 +98,7 @@ impl LcuClient {
 
     pub(crate) async fn handle_subset_champion_list_event(
         &self,
-        data: Vec<ChampionId>,
+        data: Vec<u16>,
         ctx: Arc<HelperContext>,
     ) -> Result<()> {
         if ctx.subset_champion_list.read().unwrap().is_empty() {
@@ -113,7 +110,7 @@ impl LcuClient {
     pub(crate) async fn handle_current_champion_event(
         &self,
         event_type: EventType,
-        data: ChampionId,
+        data: u16,
         ctx: Arc<HelperContext>,
     ) -> Result<()> {
         if event_type == EventType::Create {
