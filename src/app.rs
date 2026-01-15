@@ -9,11 +9,8 @@ use log::error;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    context::{Champion, HelperContext},
-    lcu::{LcuClient, start_event_listener},
-    log::LOGS,
-};
+use crate::log::LOGS;
+use lcu_backend::{CONTEXT, LcuClient, start_event_listener};
 
 // 应用常量
 const FRAME_MARGIN: f32 = 5.0;
@@ -23,7 +20,6 @@ const CHAMPION_FRAME_SIZE: Vec2 = Vec2::new(200.0, 200.0);
 
 /// 主应用程序状态
 pub struct MyApp {
-    ctx: Arc<HelperContext>,
     client: Arc<RwLock<LcuClient>>,
     rt: tokio::runtime::Runtime,
     cancel_token: Arc<CancellationToken>,
@@ -33,14 +29,6 @@ pub struct MyApp {
     modal_open: bool,
     // 搜索关键词
     search_text: String,
-}
-
-/// 在网格中添加标签和控件的宏
-macro_rules! add_grid_row {
-    ($ui:expr, $($widget:expr),+) => {
-        $($ui.add($widget);)+
-        $ui.end_row();
-    };
 }
 
 /// 安全地在Vec之间移动元素的宏
@@ -98,19 +86,19 @@ impl App for MyApp {
         // 保存设置到存储
         storage.set_string(
             "me",
-            serde_json::to_string(&*self.ctx.me.read().unwrap()).unwrap(),
+            serde_json::to_string(&*CONTEXT.me.read().unwrap()).unwrap(),
         );
         storage.set_string(
             "auto_pick",
-            serde_json::to_string(&*self.ctx.auto_pick.read().unwrap()).unwrap(),
+            serde_json::to_string(&*CONTEXT.auto_pick.read().unwrap()).unwrap(),
         );
         storage.set_string(
             "auto_accepted_delay",
-            serde_json::to_string(&*self.ctx.auto_accepted_delay.read().unwrap()).unwrap(),
+            serde_json::to_string(&CONTEXT.auto_accepted_delay.load(Ordering::Relaxed)).unwrap(),
         );
         storage.set_string(
             "auto_send_analysis",
-            serde_json::to_string(&*self.ctx.auto_send_analysis.read().unwrap()).unwrap(),
+            serde_json::to_string(&CONTEXT.auto_send_analysis.load(Ordering::Relaxed)).unwrap(),
         );
     }
 }
@@ -129,7 +117,7 @@ impl MyApp {
         fonts.font_data.insert(
             "msyh".to_owned(),
             Arc::new(FontData::from_static(include_bytes!(
-                "../MapleMono-NF-CN-Regular.ttf"
+                "../static/MapleMono-NF-CN-Regular.ttf"
             ))),
         );
         fonts
@@ -146,14 +134,31 @@ impl MyApp {
         cc.egui_ctx.set_fonts(fonts);
         cc.egui_ctx.set_zoom_factor(1.5);
 
-        let ctx = if let Some(storage) = cc.storage {
-            HelperContext::from_storage(storage)
-        } else {
-            HelperContext::default()
+        if let Some(storage) = cc.storage {
+            let ctx = &*CONTEXT;
+            *ctx.auto_pick.write().unwrap() =
+                serde_json::from_str(&storage.get_string("auto_pick").unwrap_or_default())
+                    .unwrap_or_default();
+            ctx.auto_accepted_delay.store(
+                serde_json::from_str(
+                    &storage
+                        .get_string("auto_accepted_delay")
+                        .unwrap_or_default(),
+                )
+                .unwrap_or_default(),
+                Ordering::Relaxed,
+            );
+            ctx.auto_send_analysis.store(
+                serde_json::from_str(&storage.get_string("auto_send_analysis").unwrap_or_default())
+                    .unwrap_or_default(),
+                Ordering::Relaxed,
+            );
+            *ctx.me.write().unwrap() =
+                serde_json::from_str(&storage.get_string("me").unwrap_or_default())
+                    .unwrap_or_default();
         };
 
         Self {
-            ctx: Arc::new(ctx),
             rt: tokio::runtime::Runtime::new().unwrap(),
             client: Arc::new(RwLock::new(LcuClient::default())),
             cancel_token: Arc::new(CancellationToken::new()),
@@ -171,6 +176,8 @@ impl MyApp {
 
     /// 渲染设置控件区域
     fn render_settings_controls(&mut self, ui: &mut egui::Ui) {
+        let mut auto_accepted_delay = CONTEXT.auto_accepted_delay.load(Ordering::Relaxed);
+        let mut auto_send_analysis = CONTEXT.auto_send_analysis.load(Ordering::Relaxed);
         ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
             ui.add_space(FRAME_MARGIN);
             Grid::new("settings_grid")
@@ -182,25 +189,32 @@ impl MyApp {
                         self.champion_pick_window_open = true;
                     }
                     ui.add(Checkbox::without_text(
-                        &mut self.ctx.auto_pick.write().unwrap().enabled,
+                        &mut CONTEXT.auto_pick.write().unwrap().enabled,
                     ));
                     ui.end_row();
 
                     // 自动接受延迟
-                    add_grid_row!(
-                        ui,
-                        Label::new("自动接受延迟"),
-                        DragValue::new(&mut *self.ctx.auto_accepted_delay.write().unwrap())
+                    ui.add(Label::new("自动接受对局延迟"));
+                    let drag_resp = ui.add(
+                        DragValue::new(&mut auto_accepted_delay)
                             .range(0.0..=10.0)
-                            .suffix(" s")
+                            .suffix(" s"),
                     );
+                    if drag_resp.changed() {
+                        CONTEXT
+                            .auto_accepted_delay
+                            .store(auto_accepted_delay, Ordering::Relaxed);
+                    }
+                    ui.end_row();
 
                     // 自动分析
-                    add_grid_row!(
-                        ui,
-                        Label::new("自动发送消息"),
-                        Checkbox::without_text(&mut self.ctx.auto_send_analysis.write().unwrap())
-                    );
+                    ui.add(Label::new("自动发送分析"));
+                    let check_box_resp = ui.add(Checkbox::without_text(&mut auto_send_analysis));
+                    if check_box_resp.changed() {
+                        CONTEXT
+                            .auto_send_analysis
+                            .store(auto_send_analysis, Ordering::Relaxed);
+                    }
                 });
         });
     }
@@ -210,7 +224,7 @@ impl MyApp {
         Separator::default().spacing(SEPARATOR_SPACING).ui(ui);
 
         ui.vertical(|ui| {
-            let me = self.ctx.me.read().unwrap();
+            let me = CONTEXT.me.read().unwrap();
             ui.label(format!("名称: {}", me.game_name));
             ui.add_space(FRAME_MARGIN);
             ui.label(format!("等级: {}", me.summoner_level));
@@ -227,31 +241,30 @@ impl MyApp {
                 ui.add_space(BUTTON_SPACING);
 
                 // 开始/停止按钮
-                let button_text = if self.ctx.listening.load(Ordering::Relaxed) {
+                let button_text = if CONTEXT.listening.load(Ordering::Relaxed) {
                     "停止助手"
                 } else {
                     "启动助手"
                 };
                 if ui.button(button_text).clicked() {
-                    if !self.ctx.listening.load(Ordering::Relaxed) {
+                    if !CONTEXT.listening.load(Ordering::Relaxed) {
                         let client = self.client.clone();
-                        let ctx = self.ctx.clone();
                         let cancel_token = self.cancel_token.clone();
                         {
-                            self.ctx.listening.store(true, Ordering::Relaxed);
+                            CONTEXT.listening.store(true, Ordering::Relaxed);
                         }
                         self.rt.spawn(async move {
-                            start_event_listener(client, ctx.clone(), cancel_token)
+                            start_event_listener(client, cancel_token)
                                 .await
                                 .unwrap_or_else(|e| {
                                     error!("启动事件监听失败: {e}");
-                                    ctx.listening.store(false, Ordering::Relaxed);
+                                    CONTEXT.listening.store(false, Ordering::Relaxed);
                                 })
                         });
                     } else {
                         self.cancel_token.cancel();
                         self.cancel_token = Arc::new(CancellationToken::new());
-                        self.ctx.reset();
+                        CONTEXT.reset();
                     }
                 }
             },
@@ -290,8 +303,7 @@ impl MyApp {
 
             // 左侧：未选中英雄列表
             render_champion_list!(left, "可用英雄", |ui| {
-                for (idx, champion) in self
-                    .ctx
+                for (idx, champion) in CONTEXT
                     .auto_pick
                     .read()
                     .unwrap()
@@ -312,8 +324,7 @@ impl MyApp {
             });
             // 右侧：已选中英雄列表（支持拖拽）
             render_champion_list!(right, "已选英雄", |ui| {
-                for (idx, name) in self
-                    .ctx
+                for (idx, name) in CONTEXT
                     .auto_pick
                     .read()
                     .unwrap()
@@ -321,7 +332,7 @@ impl MyApp {
                     .iter()
                     .enumerate()
                 {
-                    self.render_draggable_champion_item(ui, idx, name, &mut state);
+                    self.render_draggable_champion_item(ui, idx, &name.1, &mut state);
                 }
             });
         });
@@ -333,7 +344,7 @@ impl MyApp {
         ui.separator();
         ui.horizontal(|ui| {
             if ui.button("清空已选").clicked() {
-                let mut auto_pick = self.ctx.auto_pick.write().unwrap();
+                let mut auto_pick = CONTEXT.auto_pick.write().unwrap();
                 let selected_clone = auto_pick.selected.clone();
                 auto_pick.unselected.extend(selected_clone);
                 auto_pick
@@ -342,11 +353,10 @@ impl MyApp {
                 auto_pick.selected.clear();
             }
             if ui.button("更新可用英雄").clicked() {
-                if !self.ctx.listening.load(Ordering::Relaxed) {
+                if !CONTEXT.listening.load(Ordering::Relaxed) {
                     self.modal_open = true;
                 } else {
                     let client = self.client.clone();
-                    let ctx = self.ctx.clone();
                     self.rt.spawn(async move {
                         let champions = client
                             .read()
@@ -357,7 +367,7 @@ impl MyApp {
                                 error!("获取英雄列表失败: {e}");
                                 vec![]
                             });
-                        let selected = ctx
+                        let selected = CONTEXT
                             .auto_pick
                             .read()
                             .unwrap()
@@ -365,7 +375,7 @@ impl MyApp {
                             .iter()
                             .map(|champ| champ.0)
                             .collect::<Vec<u16>>();
-                        let mut auto_pick = ctx.auto_pick.write().unwrap();
+                        let mut auto_pick = CONTEXT.auto_pick.write().unwrap();
                         auto_pick.unselected = champions
                             .into_iter()
                             .filter(|champ| !selected.contains(&champ.0))
@@ -397,12 +407,12 @@ impl MyApp {
         &self,
         ui: &mut egui::Ui,
         idx: usize,
-        name: &Champion,
+        name: &str,
         state: &mut ChampionPickState,
     ) {
         let drag_id = egui::Id::new(("selected_champion", idx));
         let response = ui
-            .dnd_drag_source(drag_id, idx, |ui| ui.label(name.1.clone()))
+            .dnd_drag_source(drag_id, idx, |ui| ui.label(name))
             .response
             .interact(egui::Sense::click_and_drag());
         if response.clicked() && state.unselect_index.is_none() {
@@ -451,7 +461,7 @@ impl MyApp {
     }
 
     fn handle_champion_operations(&mut self, state: ChampionPickState) {
-        let mut auto_pick = self.ctx.auto_pick.write().unwrap();
+        let mut auto_pick = CONTEXT.auto_pick.write().unwrap();
         match (
             state.select_index,
             state.drag_from,

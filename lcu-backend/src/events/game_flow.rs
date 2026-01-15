@@ -1,9 +1,9 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
-use crate::lcu::Result;
+use crate::Result;
 use log::info;
 
-use crate::{context::HelperContext, lcu::ChampSelectPlayer, lcu::LcuClient};
+use crate::{CONTEXT, ChampSelectPlayer, LcuClient};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -45,31 +45,27 @@ pub enum GamePhase {
 }
 
 impl LcuClient {
-    pub(crate) async fn handle_game_flow_event(
-        &self,
-        data: GameFlowSession,
-        ctx: Arc<HelperContext>,
-    ) -> Result<()> {
+    pub(crate) async fn handle_game_flow_event(&self, data: GameFlowSession) -> Result<()> {
         #[cfg(feature = "debug_events")]
         if let GamePhase::Other = data.phase {
             debug!("Unknown GamePhase in session data: {:?}", data);
         }
         // 在 if 语句中使用 read 锁，避免长时间持有锁导致死锁
-        if *ctx.game_phase.read().unwrap() == data.phase {
+        if *CONTEXT.game_phase.read().unwrap() == data.phase {
             return Ok(());
         }
         match &data.phase {
             GamePhase::Lobby | GamePhase::None => {
-                ctx.reset();
+                CONTEXT.reset();
             }
-            GamePhase::Matchmaking if ctx.accepted.load(Ordering::Relaxed) => {
-                ctx.accepted.store(false, Ordering::Relaxed);
+            GamePhase::Matchmaking if CONTEXT.accepted.load(Ordering::Relaxed) => {
+                CONTEXT.accepted.store(false, Ordering::Relaxed);
             }
             _ => {}
         }
         info!("当前客户端状态：{:?}", &data.phase);
-        *ctx.game_phase.write().unwrap() = data.phase;
-        *ctx.game_mode.write().unwrap() = data.map.game_mode;
+        *CONTEXT.game_phase.write().unwrap() = data.phase;
+        *CONTEXT.game_mode.write().unwrap() = data.map.game_mode;
         Ok(())
     }
 }

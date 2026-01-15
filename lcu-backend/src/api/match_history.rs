@@ -1,14 +1,14 @@
-use std::{fmt::Display, sync::Arc, sync::atomic::Ordering};
+use std::{fmt::Display, sync::atomic::Ordering};
 
-use crate::lcu::Result;
+use crate::Result;
 use log::info;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use tokio::time::{Duration, sleep};
 
 use crate::{
-    context::{HelperContext, Summoner},
-    lcu::LcuClient,
+    LcuClient,
+    context::{CONTEXT, Summoner},
 };
 
 #[derive(Debug, Default)]
@@ -183,19 +183,20 @@ impl LcuClient {
         Ok(score)
     }
 
-    pub(crate) async fn analyze_team_players(&self, ctx: Arc<HelperContext>) -> Result<()> {
-        if ctx.analysis_sent_flag.load(Ordering::Relaxed)
-            || ctx.game_mode.read().unwrap().is_empty()
-            || ctx.conversation_id.read().unwrap().is_empty()
+    pub(crate) async fn analyze_team_players(&self) -> Result<()> {
+        if CONTEXT.analysis_sent_flag.load(Ordering::Relaxed)
+            || CONTEXT.game_mode.read().unwrap().is_empty()
+            || CONTEXT.conversation_id.read().unwrap().is_empty()
         {
             return Ok(());
         }
 
-        let game_mode = { ctx.game_mode.read().unwrap().clone() };
-        let conversation_id = { ctx.conversation_id.read().unwrap().clone() };
+        let game_mode = { CONTEXT.game_mode.read().unwrap().clone() };
+        let conversation_id = { CONTEXT.conversation_id.read().unwrap().clone() };
         info!("当前游戏模式: {game_mode}");
         let puuids = {
-            ctx.my_team
+            CONTEXT
+                .my_team
                 .read()
                 .unwrap()
                 .iter()
@@ -214,7 +215,7 @@ impl LcuClient {
             self.send_message(&conversation_id, &msg).await;
             sleep(Duration::from_secs(1)).await; // 避免发送消息过快
         }
-        ctx.analysis_sent_flag.store(true, Ordering::Relaxed);
+        CONTEXT.analysis_sent_flag.store(true, Ordering::Relaxed);
         Ok(())
     }
 }

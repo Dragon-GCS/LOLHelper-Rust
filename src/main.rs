@@ -2,19 +2,25 @@
 use anyhow::Context;
 use eframe::icon_data::from_png_bytes;
 use eframe::{NativeOptions, egui::ViewportBuilder};
-use lcu_helper::{app::MyApp, log::init_logger};
+
+mod app;
+mod log;
+
+use app::MyApp;
+use log::init_logger;
 
 const APP_NAME: &str = "LOLHelper";
 const WINDOW_SIZE: [f32; 2] = [1200.0, 600.0];
 
 fn main() -> anyhow::Result<()> {
     init_logger();
-    let icon = include_bytes!("../icon.png");
     let options = NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(format!("{APP_NAME} v{}", env!("CARGO_PKG_VERSION")))
             .with_inner_size(WINDOW_SIZE)
-            .with_icon(from_png_bytes(icon).context("Failed to load")?)
+            .with_icon(
+                from_png_bytes(include_bytes!("../static/icon.png")).context("Failed to load")?,
+            )
             .with_resizable(true),
         ..Default::default()
     };

@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::lcu::LcuClient;
+use crate::LcuClient;
 
 #[derive(serde::Serialize)]
 pub struct MessageBody {

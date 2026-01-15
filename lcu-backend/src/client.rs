@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use super::{Event, LcuMeta};
 
-use crate::{
-    context::HelperContext,
-    lcu::{LcuError, Result},
-};
+use crate::{LcuError, Result};
 
 use log::debug;
 
@@ -88,7 +85,7 @@ impl LcuClient {
         self.request(reqwest::Method::PATCH, api, Some(body)).await
     }
 
-    pub async fn handle_message(&self, message: String, ctx: Arc<HelperContext>) -> Result<()> {
+    pub async fn handle_message(&self, message: String) -> Result<()> {
         if message.is_empty() {
             return Ok(());
         }
@@ -100,26 +97,25 @@ impl LcuClient {
             Event::GameFlowSession {
                 _event_type: _,
                 data,
-            } => self.handle_game_flow_event(data, ctx).await?,
+            } => self.handle_game_flow_event(data).await?,
             Event::MatchmakingReadyCheck {
                 _event_type: _,
                 data,
-            } => self.handle_matchmaking_ready_check_event(data, ctx).await?,
+            } => self.handle_matchmaking_ready_check_event(data).await?,
             Event::LobbyTeamBuilderMatchmaking {
                 _event_type: _,
                 data,
-            } => self.handle_lobby_matchmaking_event(data, ctx).await?,
+            } => self.handle_lobby_matchmaking_event(data).await?,
             Event::SubsetChampionList { _event_type, data } => {
-                self.handle_subset_champion_list_event(data, ctx).await?
+                self.handle_subset_champion_list_event(data).await?
             }
             Event::ChampSelectSession {
                 _event_type: _,
                 data,
-            } => self.handle_champ_select_event(data, ctx).await?,
-            Event::ChatConversation(data) => self.handle_chat_conversation_event(data, ctx).await?,
+            } => self.handle_champ_select_event(data).await?,
+            Event::ChatConversation(data) => self.handle_chat_conversation_event(data).await?,
             Event::CurrentChampion { event_type, data } => {
-                self.handle_current_champion_event(event_type, data, ctx)
-                    .await?
+                self.handle_current_champion_event(event_type, data).await?
             }
             Event::Other(_event) => {
                 #[cfg(feature = "debug_events")]

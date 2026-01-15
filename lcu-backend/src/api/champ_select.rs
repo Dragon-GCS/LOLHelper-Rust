@@ -1,14 +1,10 @@
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use crate::lcu::Result;
+use crate::{CONTEXT, Result};
 use log::info;
 use reqwest::Response;
 
-use crate::{
-    context::HelperContext,
-    lcu::{LcuClient, events::champ_select::ChampSelectData},
-};
+use crate::{LcuClient, events::champ_select::ChampSelectData};
 
 impl LcuClient {
     async fn swap_champion(&self, champion_id: u16) -> Result<Response> {
@@ -26,18 +22,18 @@ impl LcuClient {
         .await
     }
 
-    pub(crate) async fn auto_pick(&self, ctx: Arc<HelperContext>, data: ChampSelectData) {
-        if !ctx.auto_pick.read().unwrap().enabled
-            || ctx.picked.load(Ordering::Relaxed)
-            || ctx.champion_id.load(Ordering::Relaxed) != 0
+    pub(crate) async fn auto_pick(&self, data: ChampSelectData) {
+        if !CONTEXT.auto_pick.read().unwrap().enabled
+            || CONTEXT.picked.load(Ordering::Relaxed)
+            || CONTEXT.champion_id.load(Ordering::Relaxed) != 0
         {
             return;
         }
 
-        let selected = { ctx.auto_pick.read().unwrap().selected.clone() };
-        if !ctx.subset_champion_list.read().unwrap().is_empty() {
+        let selected = { CONTEXT.auto_pick.read().unwrap().selected.clone() };
+        if !CONTEXT.subset_champion_list.read().unwrap().is_empty() {
             for champion in selected.iter() {
-                if ctx
+                if CONTEXT
                     .subset_champion_list
                     .read()
                     .unwrap()
@@ -48,8 +44,8 @@ impl LcuClient {
                         .is_ok()
                 {
                     info!("自动选择英雄: {}", champion.1);
-                    ctx.champion_id.store(champion.0, Ordering::Relaxed);
-                    ctx.picked.store(true, Ordering::Relaxed);
+                    CONTEXT.champion_id.store(champion.0, Ordering::Relaxed);
+                    CONTEXT.picked.store(true, Ordering::Relaxed);
                     return;
                 }
             }
@@ -61,8 +57,8 @@ impl LcuClient {
                     && self.swap_champion(champion.0).await.is_ok()
                 {
                     info!("自动选择英雄: {}", champion.1);
-                    ctx.champion_id.store(champion.0, Ordering::Relaxed);
-                    ctx.picked.store(true, Ordering::Relaxed);
+                    CONTEXT.champion_id.store(champion.0, Ordering::Relaxed);
+                    CONTEXT.picked.store(true, Ordering::Relaxed);
                     return;
                 }
             }
@@ -81,7 +77,7 @@ impl LcuClient {
         for champion in selected.into_iter() {
             if self.pick_champion(champion.0, action.id).await.is_ok() {
                 info!("自动选择英雄: {}", champion.1);
-                ctx.picked.store(true, Ordering::Relaxed);
+                CONTEXT.picked.store(true, Ordering::Relaxed);
                 return;
             }
         }

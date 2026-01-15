@@ -1,9 +1,4 @@
-use crate::lcu::Result;
-
-use crate::{
-    context::Champion,
-    lcu::LcuClient,
-};
+use crate::{LcuClient, Result, context::Champion};
 
 const OWNED_CHAMPIONS_API: &str = "/lol-champions/v1/owned-champions-minimal";
 

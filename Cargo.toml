@@ -1,33 +1,37 @@
 [package]
 name = "lol-helper"
-version = "0.1.4"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[workspace.package]
+version = "0.2.0"
 edition = "2024"
+authors = ["Dragon-GCS"]
 
-[lints.rust]
-dead_code = "allow"
-
-[lib]
-name = "lcu_helper"
+[workspace]
+members = ["lcu-backend"]
 
 [dependencies]
-anyhow = "1.0.98"
-chrono = "0.4.41"
-eframe = { version = "0.31.1", features = ["persistence"] }
-futures-util = "0.3.31"
-log = "0.4.27"
-log4rs = { version = "1.3.0", features = ["toml_format"] }
-reqwest = { version = "0.12.15", features = ["json"] }
-reqwest-websocket = "0.4.4"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-thiserror = "2.0.12"
-tokio = { version = "1.46.0", features = ["macros", "rt-multi-thread"] }
-tokio-util = "0.7.15"
-toml = "0.9.11"
-windows = { version = "0.61.1", features = [
-    "Win32_Foundation",
-    "Win32_System_Threading",
-] }
+lcu-backend = { path = "lcu-backend" }
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+anyhow = "1.0.100"
+chrono = "0.4.42"
+eframe = { version = "0.33.3", features = ["persistence"] }
+log4rs = { version = "1.4.0", features = ["toml_format"] }
+toml = "0.9.8"
+
+[workspace.dependencies]
+log = "0.4.29"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+tokio-util = "0.7.18"
+
 
 [build-dependencies]
 embed-resource = "3"

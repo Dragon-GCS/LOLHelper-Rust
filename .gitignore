@@ -1,5 +1,5 @@
 .vscode/
 /target
-examples/
+examples/*
 
 *.log

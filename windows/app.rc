@@ -1,4 +1,4 @@
 // Auto-generated. Embeds the main application icon into the Windows executable.
 // Uses the icon at the project root: icon.ico
 
-1 ICON "../icon.ico"
+1 ICON "../static/icon.ico"

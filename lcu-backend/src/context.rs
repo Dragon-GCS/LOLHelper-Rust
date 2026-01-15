@@ -1,10 +1,10 @@
-use crate::lcu::{ChampSelectPlayer, GamePhase};
+use crate::{ChampSelectPlayer, GamePhase};
 use log::debug;
 use serde::{Deserialize, Serialize};
-use std::sync::RwLock;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU16, Ordering};
+use std::sync::{LazyLock, RwLock};
 
-const AUTO_PICK_FILE: &str = "auto_pick.json";
+pub static CONTEXT: LazyLock<HelperContext> = LazyLock::new(HelperContext::new);
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Summoner {
@@ -47,15 +47,15 @@ pub struct HelperContext {
     pub analysis_sent_flag: AtomicBool,
     // Settings
     pub auto_pick: RwLock<AutoPick>,
-    pub auto_accepted_delay: RwLock<i8>,
-    pub auto_send_analysis: RwLock<bool>,
+    pub auto_accepted_delay: AtomicU8,
+    pub auto_send_analysis: AtomicBool,
 }
 
 impl HelperContext {
     pub fn new() -> Self {
         Self {
-            auto_accepted_delay: RwLock::new(3),
-            auto_send_analysis: RwLock::new(true),
+            auto_accepted_delay: AtomicU8::new(3),
+            auto_send_analysis: AtomicBool::new(true),
             auto_pick: RwLock::new(AutoPick {
                 enabled: true,
                 ..Default::default()
@@ -72,29 +72,5 @@ impl HelperContext {
         self.conversation_id.write().unwrap().clear();
         self.game_mode.write().unwrap().clear();
         debug!("HelperContext reset");
-    }
-
-    pub fn from_storage(storage: &dyn eframe::Storage) -> Self {
-        let auto_pick = serde_json::from_str(&storage.get_string("auto_pick").unwrap_or_default())
-            .unwrap_or_default();
-        let auto_accepted_delay = serde_json::from_str(
-            &storage
-                .get_string("auto_accepted_delay")
-                .unwrap_or_default(),
-        )
-        .unwrap_or_default();
-        let auto_send_analysis =
-            serde_json::from_str(&storage.get_string("auto_send_analysis").unwrap_or_default())
-                .unwrap_or_default();
-        let me =
-            serde_json::from_str(&storage.get_string("me").unwrap_or_default()).unwrap_or_default();
-
-        HelperContext {
-            me,
-            auto_pick,
-            auto_accepted_delay,
-            auto_send_analysis,
-            ..Default::default()
-        }
     }
 }

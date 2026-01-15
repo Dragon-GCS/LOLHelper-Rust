@@ -1,12 +1,9 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
-use crate::lcu::Result;
+use crate::Result;
 use log::error;
 
-use crate::{
-    context::HelperContext,
-    lcu::{LcuClient, events::EventType},
-};
+use crate::{CONTEXT, LcuClient, events::EventType};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
@@ -75,34 +72,26 @@ where
 }
 
 impl LcuClient {
-    pub(crate) async fn handle_champ_select_event(
-        &self,
-        data: ChampSelectData,
-        ctx: Arc<HelperContext>,
-    ) -> Result<()> {
-        if ctx.my_team.read().unwrap().is_empty() && !data.my_team.is_empty() {
+    pub(crate) async fn handle_champ_select_event(&self, data: ChampSelectData) -> Result<()> {
+        if CONTEXT.my_team.read().unwrap().is_empty() && !data.my_team.is_empty() {
             {
-                let mut my_team = ctx.my_team.write().unwrap();
-                *my_team = data.my_team.clone();
+                *CONTEXT.my_team.write().unwrap() = data.my_team.clone();
             }
         }
-        if *ctx.auto_send_analysis.read().unwrap() && *ctx.game_mode.read().unwrap() != "TFT" {
-            let ctx = ctx.clone();
-            self.analyze_team_players(ctx).await.unwrap_or_else(|e| {
+        if CONTEXT.auto_send_analysis.load(Ordering::Relaxed)
+            && *CONTEXT.game_mode.read().unwrap() != "TFT"
+        {
+            self.analyze_team_players().await.unwrap_or_else(|e| {
                 error!("Failed to analyze team players: {e}");
             });
         }
-        self.auto_pick(ctx, data).await;
+        self.auto_pick(data).await;
         Ok(())
     }
 
-    pub(crate) async fn handle_subset_champion_list_event(
-        &self,
-        data: Vec<u16>,
-        ctx: Arc<HelperContext>,
-    ) -> Result<()> {
-        if ctx.subset_champion_list.read().unwrap().is_empty() {
-            *ctx.subset_champion_list.write().unwrap() = data;
+    pub(crate) async fn handle_subset_champion_list_event(&self, data: Vec<u16>) -> Result<()> {
+        if CONTEXT.subset_champion_list.read().unwrap().is_empty() {
+            *CONTEXT.subset_champion_list.write().unwrap() = data;
         }
         Ok(())
     }
@@ -111,10 +100,9 @@ impl LcuClient {
         &self,
         event_type: EventType,
         data: u16,
-        ctx: Arc<HelperContext>,
     ) -> Result<()> {
         if event_type == EventType::Create {
-            ctx.champion_id.store(data, Ordering::Relaxed);
+            CONTEXT.champion_id.store(data, Ordering::Relaxed);
         }
         Ok(())
     }

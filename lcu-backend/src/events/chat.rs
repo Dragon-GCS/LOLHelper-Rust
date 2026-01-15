@@ -1,9 +1,6 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
-use crate::{
-    context::HelperContext,
-    lcu::{LcuClient, Result, events::EventType},
-};
+use crate::{CONTEXT, LcuClient, Result, events::EventType};
 use serde::{Deserialize, Deserializer, de::Error};
 
 #[derive(Debug, Deserialize)]
@@ -56,15 +53,14 @@ impl LcuClient {
     pub(crate) async fn handle_chat_conversation_event(
         &self,
         data: ChatConversation,
-        ctx: Arc<HelperContext>,
     ) -> Result<()> {
         match data.event_type {
             EventType::Create => {
-                *ctx.conversation_id.write().unwrap() = data.id;
-                ctx.analysis_sent_flag.store(false, Ordering::Relaxed);
+                *CONTEXT.conversation_id.write().unwrap() = data.id;
+                CONTEXT.analysis_sent_flag.store(false, Ordering::Relaxed);
             }
             EventType::Delete => {
-                ctx.conversation_id.write().unwrap().clear();
+                CONTEXT.conversation_id.write().unwrap().clear();
             }
             _ => {}
         }

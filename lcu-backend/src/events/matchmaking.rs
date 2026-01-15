@@ -1,8 +1,8 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
-use crate::lcu::Result;
+use crate::Result;
 
-use crate::{context::HelperContext, lcu::LcuClient};
+use crate::{CONTEXT, LcuClient};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -32,12 +32,11 @@ impl LcuClient {
     pub(crate) async fn handle_matchmaking_ready_check_event(
         &self,
         data: Option<MatchMakingReadyCheck>,
-        ctx: Arc<HelperContext>,
     ) -> Result<()> {
-        if !ctx.accepted.load(Ordering::Relaxed)
+        if !CONTEXT.accepted.load(Ordering::Relaxed)
             && data.is_some_and(|data| matches!(data.player_response, MatchReadyResponse::None))
         {
-            self.auto_accept(ctx).await;
+            self.auto_accept().await;
         }
         Ok(())
     }
@@ -45,7 +44,6 @@ impl LcuClient {
     pub(crate) async fn handle_lobby_matchmaking_event(
         &self,
         _data: Option<MatchMaking>,
-        _ctx: Arc<HelperContext>,
     ) -> Result<()> {
         // Current implementation is empty
         Ok(())

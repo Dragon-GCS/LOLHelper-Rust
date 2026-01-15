@@ -7,7 +7,7 @@ use std::ptr::null_mut;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
-use crate::lcu::{LcuError, Result};
+use crate::{LcuError, Result};
 
 #[repr(C)]
 struct UnicodeString {
