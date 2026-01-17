@@ -10,23 +10,25 @@ edition = "2024"
 authors = ["Dragon-GCS"]
 
 [workspace]
-members = ["lcu-backend"]
+members = ["lcu-backend", "lcu-cli"]
 
 [dependencies]
 lcu-backend = { path = "lcu-backend" }
+anyhow.workspace = true
 log.workspace = true
+log4rs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-anyhow = "1.0.100"
 chrono = "0.4.42"
 eframe = { version = "0.33.3", features = ["persistence"] }
-log4rs = { version = "1.4.0", features = ["toml_format"] }
 toml = "0.9.8"
 
 [workspace.dependencies]
+anyhow = "1.0.100"
 log = "0.4.29"
+log4rs = { version = "1.4.0", features = ["toml_format"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }

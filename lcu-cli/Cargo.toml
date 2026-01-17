@@ -1,0 +1,14 @@
+[package]
+name = "lcu-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+lcu-backend = { path = "../lcu-backend" }
+anyhow.workspace = true
+log.workspace = true
+log4rs.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+tokio-util.workspace = true
+clap = { version = "4.5.54", features = ["derive"] }
