@@ -12,3 +12,6 @@ log4rs.workspace = true
 tokio = { workspace = true, features = ["signal"] }
 tokio-util.workspace = true
 clap = { version = "4.5.54", features = ["derive"] }
+
+[features]
+debug_events = ["lcu-backend/debug_events"]

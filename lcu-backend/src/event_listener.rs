@@ -7,7 +7,6 @@ use log::{error, info};
 use reqwest_websocket::{CloseCode, Message, RequestBuilderExt};
 use tokio::sync::RwLock;
 
-#[cfg(not(debug_assertions))]
 use super::events::SUBSCRIBED_EVENT;
 use crate::{CONTEXT, LcuClient, Result, default_client};
 
@@ -28,13 +27,8 @@ pub async fn start_event_listener(
         .into_websocket()
         .await?;
 
-    #[cfg(debug_assertions)]
-    ws.send(Message::Text("[5, \"OnJsonApiEvent\"]".into()))
-        .await?;
-    #[cfg(not(debug_assertions))]
     for event in SUBSCRIBED_EVENT {
-        ws.send(Message::Text(format!("[5, \"OnJsonApiEvent_{event}\"]")))
-            .await?;
+        ws.send(Message::Text(format!("[5, \"{event}\"]"))).await?;
     }
 
     {

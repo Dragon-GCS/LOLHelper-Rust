@@ -21,6 +21,7 @@ windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_System_Threading",
 ] }
+regex = "1.12.2"
 
 [features]
 debug_events = []

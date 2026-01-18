@@ -1,15 +1,10 @@
-use std::{fmt::Display, sync::atomic::Ordering};
+use std::fmt::Display;
 
 use crate::Result;
-use log::info;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
-use tokio::time::{Duration, sleep};
 
-use crate::{
-    LcuClient,
-    context::{CONTEXT, Summoner},
-};
+use crate::{LcuClient, context::Summoner};
 
 #[derive(Debug, Default)]
 pub struct PlayerScore {
@@ -181,41 +176,5 @@ impl LcuClient {
         let mut score = matches.calculate_player_score(game_mode);
         score.set_name(&summoner.game_name);
         Ok(score)
-    }
-
-    pub(crate) async fn analyze_team_players(&self) -> Result<()> {
-        if CONTEXT.analysis_sent_flag.load(Ordering::Relaxed)
-            || CONTEXT.game_mode.read().unwrap().is_empty()
-            || CONTEXT.conversation_id.read().unwrap().is_empty()
-        {
-            return Ok(());
-        }
-
-        let game_mode = { CONTEXT.game_mode.read().unwrap().clone() };
-        let conversation_id = { CONTEXT.conversation_id.read().unwrap().clone() };
-        info!("当前游戏模式: {game_mode}");
-        let puuids = {
-            CONTEXT
-                .my_team
-                .read()
-                .unwrap()
-                .iter()
-                .filter_map(|player| {
-                    if player.puuid.is_empty() {
-                        None
-                    } else {
-                        Some(player.puuid.clone())
-                    }
-                })
-                .collect::<Vec<String>>()
-        };
-        for puuid in puuids {
-            let player_score = self.analyze_player(&puuid, &game_mode).await?;
-            let msg = format!("{player_score}");
-            self.send_message(&conversation_id, &msg).await;
-            sleep(Duration::from_secs(1)).await; // 避免发送消息过快
-        }
-        CONTEXT.analysis_sent_flag.store(true, Ordering::Relaxed);
-        Ok(())
     }
 }

@@ -107,13 +107,13 @@ impl LcuClient {
                 data,
             } => self.handle_lobby_matchmaking_event(data).await?,
             Event::SubsetChampionList { _event_type, data } => {
-                self.handle_subset_champion_list_event(data).await?
+                self.handle_subset_champion_list_event(data).await
             }
             Event::ChampSelectSession {
                 _event_type: _,
                 data,
-            } => self.handle_champ_select_event(data).await?,
-            Event::ChatConversation(data) => self.handle_chat_conversation_event(data).await?,
+            } => self.handle_champ_select_event(data).await,
+            Event::ChatConversation(data) => self.handle_chat_conversation_event(data).await,
             Event::CurrentChampion { event_type, data } => {
                 self.handle_current_champion_event(event_type, data).await?
             }

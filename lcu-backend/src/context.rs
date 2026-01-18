@@ -1,4 +1,4 @@
-use crate::{ChampSelectPlayer, GamePhase};
+use crate::GamePhase;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU16, Ordering};
@@ -34,17 +34,14 @@ pub struct HelperContext {
     pub listening: AtomicBool,
     pub champion_id: AtomicU16,
     pub me: RwLock<Summoner>,
-    pub my_team: RwLock<Vec<ChampSelectPlayer>>,
     pub game_phase: RwLock<GamePhase>,
     pub game_mode: RwLock<String>,
-    pub conversation_id: RwLock<String>,
 
     // For auto pick champion
     pub subset_champion_list: RwLock<Vec<u16>>,
     // flags
     pub picked: AtomicBool,
     pub accepted: AtomicBool,
-    pub analysis_sent_flag: AtomicBool,
     // Settings
     pub auto_pick: RwLock<AutoPick>,
     pub auto_accepted_delay: AtomicU8,
@@ -66,10 +63,7 @@ impl HelperContext {
 
     pub fn reset(&self) {
         self.champion_id.store(0, Ordering::Relaxed);
-        self.analysis_sent_flag.store(false, Ordering::Relaxed);
-        (*self.my_team.write().unwrap()).clear();
         (*self.subset_champion_list.write().unwrap()).clear();
-        self.conversation_id.write().unwrap().clear();
         self.game_mode.write().unwrap().clear();
         debug!("HelperContext reset");
     }

@@ -1,9 +1,8 @@
 use std::sync::atomic::Ordering;
 
-use crate::Result;
-use log::error;
+use log::info;
 
-use crate::{CONTEXT, LcuClient, events::EventType};
+use crate::{CONTEXT, LcuClient, Result, events::EventType};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
@@ -16,7 +15,7 @@ pub struct ChampSelectData {
     pub actions: Vec<Action>,
     pub local_player_cell_id: u8, // cell_id
     // pub id: String,
-    pub my_team: Vec<ChampSelectPlayer>,
+    pub my_team: Vec<ChampSelectPlayer>, // 队友列表
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,28 +71,74 @@ where
 }
 
 impl LcuClient {
-    pub(crate) async fn handle_champ_select_event(&self, data: ChampSelectData) -> Result<()> {
-        if CONTEXT.my_team.read().unwrap().is_empty() && !data.my_team.is_empty() {
-            {
-                *CONTEXT.my_team.write().unwrap() = data.my_team.clone();
+    /// 处理英雄选择事件，保存队伍信息并尝试自动选人
+    pub(crate) async fn handle_champ_select_event(&self, data: ChampSelectData) {
+        if !CONTEXT.auto_pick.read().unwrap().enabled || CONTEXT.picked.load(Ordering::Relaxed) {
+            return;
+        }
+        // 当前玩家不在英雄选择阶段
+        if !data.actions.iter().any(|action| {
+            action.actor_cell_id == data.local_player_cell_id
+                && action.action_type == "pick"
+                && action.is_in_progress
+        }) {
+            return;
+        }
+
+        let selected = { CONTEXT.auto_pick.read().unwrap().selected.clone() };
+        // 大乱斗英雄选择
+        if !CONTEXT.subset_champion_list.read().unwrap().is_empty() {
+            // 清空subset_champion_list，避免重复使用
+            let subset_champions = {
+                let mut list = CONTEXT.subset_champion_list.write().unwrap();
+                std::mem::take(&mut *list)
+            };
+            for champion in selected.iter() {
+                if subset_champions.contains(&champion.0)
+                    && self
+                        .pick_champion(champion.0, data.local_player_cell_id)
+                        .await
+                        .is_ok()
+                {
+                    info!("自动选择英雄: {}", champion.1);
+                    CONTEXT.champion_id.store(champion.0, Ordering::Relaxed);
+                    CONTEXT.picked.store(true, Ordering::Relaxed);
+                    return;
+                }
             }
         }
-        if CONTEXT.auto_send_analysis.load(Ordering::Relaxed)
-            && *CONTEXT.game_mode.read().unwrap() != "TFT"
-        {
-            self.analyze_team_players().await.unwrap_or_else(|e| {
-                error!("Failed to analyze team players: {e}");
-            });
+
+        if data.bench_enabled {
+            for champion in selected.iter() {
+                if data.bench_champions.contains(&champion.0)
+                    && self.swap_champion(champion.0).await.is_ok()
+                {
+                    info!("自动选择英雄: {}", champion.1);
+                    CONTEXT.champion_id.store(champion.0, Ordering::Relaxed);
+                    CONTEXT.picked.store(true, Ordering::Relaxed);
+                    return;
+                }
+            }
+        } else {
+            for champion in selected.into_iter() {
+                if self
+                    .pick_champion(champion.0, data.local_player_cell_id)
+                    .await
+                    .is_ok()
+                {
+                    info!("自动选择英雄: {}", champion.1);
+                    CONTEXT.picked.store(true, Ordering::Relaxed);
+                    return;
+                }
+            }
         }
-        self.auto_pick(data).await;
-        Ok(())
     }
 
-    pub(crate) async fn handle_subset_champion_list_event(&self, data: Vec<u16>) -> Result<()> {
+    /// 保存备选英雄列表
+    pub(crate) async fn handle_subset_champion_list_event(&self, data: Vec<u16>) {
         if CONTEXT.subset_champion_list.read().unwrap().is_empty() {
             *CONTEXT.subset_champion_list.write().unwrap() = data;
         }
-        Ok(())
     }
 
     pub(crate) async fn handle_current_champion_event(

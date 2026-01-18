@@ -46,10 +46,6 @@ pub enum GamePhase {
 
 impl LcuClient {
     pub(crate) async fn handle_game_flow_event(&self, data: GameFlowSession) -> Result<()> {
-        #[cfg(feature = "debug_events")]
-        if let GamePhase::Other = data.phase {
-            debug!("Unknown GamePhase in session data: {:?}", data);
-        }
         // 在 if 语句中使用 read 锁，避免长时间持有锁导致死锁
         if *CONTEXT.game_phase.read().unwrap() == data.phase {
             return Ok(());
@@ -64,6 +60,11 @@ impl LcuClient {
             _ => {}
         }
         info!("当前客户端状态：{:?}", &data.phase);
+        if !data.map.game_mode.is_empty()
+            && data.map.game_mode != *CONTEXT.game_mode.read().unwrap()
+        {
+            info!("当前游戏模式: {}", &data.map.game_mode);
+        }
         *CONTEXT.game_phase.write().unwrap() = data.phase;
         *CONTEXT.game_mode.write().unwrap() = data.map.game_mode;
         Ok(())

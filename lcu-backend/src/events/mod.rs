@@ -13,13 +13,15 @@ use super::events::{
     matchmaking::{MatchMaking, MatchMakingReadyCheck},
 };
 
-#[cfg(not(debug_assertions))]
+#[cfg(feature = "debug_events")]
+pub(crate) const SUBSCRIBED_EVENT: [&str; 6] = ["OnJsonApiEvent"];
+#[cfg(not(feature = "debug_events"))]
 pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
-    "lol-gameflow_v1_session",
-    "lol-matchmaking_v1_ready-check",
-    "lol-lobby-team-builder_v1_matchmaking",
-    "lol-champ-select_v1_session",
-    "lol-chat_v1_conversations",
+    "OnJsonApiEvent_lol-gameflow_v1_session",
+    "OnJsonApiEvent_lol-matchmaking_v1_ready-check",
+    "OnJsonApiEvent_lol-lobby-team-builder_v1_matchmaking",
+    "OnJsonApiEvent_lol-champ-select_v1_session",
+    "OnJsonApiEvent_lol-chat_v1_conversations",
 ];
 
 #[derive(Debug, Deserialize, PartialEq)]
