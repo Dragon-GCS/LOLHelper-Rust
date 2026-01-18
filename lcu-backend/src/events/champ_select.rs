@@ -11,6 +11,7 @@ pub struct ChampSelectData {
     #[serde(deserialize_with = "deserialize_champion_ids")]
     pub bench_champions: Vec<u16>, // Vec<ChampionId>
     pub bench_enabled: bool,
+    pub allow_subset_champion_picks: bool,
     #[serde(deserialize_with = "unwrap_actions")]
     pub actions: Vec<Action>,
     pub local_player_cell_id: u8, // cell_id
@@ -86,13 +87,12 @@ impl LcuClient {
         }
 
         let selected = { CONTEXT.auto_pick.read().unwrap().selected.clone() };
+
         // 大乱斗英雄选择
-        if !CONTEXT.subset_champion_list.read().unwrap().is_empty() {
-            // 清空subset_champion_list，避免重复使用
-            let subset_champions = {
-                let mut list = CONTEXT.subset_champion_list.write().unwrap();
-                std::mem::take(&mut *list)
-            };
+        if !CONTEXT.subset_champion_checked.load(Ordering::Relaxed)
+            && data.allow_subset_champion_picks
+            && let Ok(subset_champions) = self.subset_champion_list().await
+        {
             for champion in selected.iter() {
                 if subset_champions.contains(&champion.0)
                     && self
@@ -106,6 +106,10 @@ impl LcuClient {
                     return;
                 }
             }
+
+            CONTEXT
+                .subset_champion_checked
+                .store(true, Ordering::Release);
         }
 
         if data.bench_enabled {
@@ -131,13 +135,6 @@ impl LcuClient {
                     return;
                 }
             }
-        }
-    }
-
-    /// 保存备选英雄列表
-    pub(crate) async fn handle_subset_champion_list_event(&self, data: Vec<u16>) {
-        if CONTEXT.subset_champion_list.read().unwrap().is_empty() {
-            *CONTEXT.subset_champion_list.write().unwrap() = data;
         }
     }
 

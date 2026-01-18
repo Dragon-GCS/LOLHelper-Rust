@@ -14,7 +14,7 @@ use super::events::{
 };
 
 #[cfg(feature = "debug_events")]
-pub(crate) const SUBSCRIBED_EVENT: [&str; 6] = ["OnJsonApiEvent"];
+pub(crate) const SUBSCRIBED_EVENT: [&str; 1] = ["OnJsonApiEvent"];
 #[cfg(not(feature = "debug_events"))]
 pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
     "OnJsonApiEvent_lol-gameflow_v1_session",
@@ -63,12 +63,6 @@ pub enum Event {
         #[serde(rename = "eventType")]
         event_type: EventType,
         data: u16, // ChampionId
-    },
-    #[serde(rename = "/lol-lobby-team-builder/champ-select/v1/subset-champion-list")]
-    SubsetChampionList {
-        #[serde(rename = "eventType")]
-        _event_type: EventType,
-        data: Vec<u16>, // Vec<ChampionId>
     },
     #[serde(deserialize_with = "chat_conversation_deserializer")]
     #[serde(untagged)]

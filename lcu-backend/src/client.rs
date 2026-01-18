@@ -106,9 +106,6 @@ impl LcuClient {
                 _event_type: _,
                 data,
             } => self.handle_lobby_matchmaking_event(data).await?,
-            Event::SubsetChampionList { _event_type, data } => {
-                self.handle_subset_champion_list_event(data).await
-            }
             Event::ChampSelectSession {
                 _event_type: _,
                 data,

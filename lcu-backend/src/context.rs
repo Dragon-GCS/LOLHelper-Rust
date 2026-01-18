@@ -37,9 +37,9 @@ pub struct HelperContext {
     pub game_phase: RwLock<GamePhase>,
     pub game_mode: RwLock<String>,
 
-    // For auto pick champion
-    pub subset_champion_list: RwLock<Vec<u16>>,
     // flags
+    // For auto pick champion check once
+    pub subset_champion_checked: AtomicBool,
     pub picked: AtomicBool,
     pub accepted: AtomicBool,
     // Settings
@@ -63,7 +63,7 @@ impl HelperContext {
 
     pub fn reset(&self) {
         self.champion_id.store(0, Ordering::Relaxed);
-        (*self.subset_champion_list.write().unwrap()).clear();
+        self.subset_champion_checked.store(false, Ordering::Relaxed);
         self.game_mode.write().unwrap().clear();
         debug!("HelperContext reset");
     }
