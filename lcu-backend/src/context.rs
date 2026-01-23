@@ -63,6 +63,7 @@ impl HelperContext {
 
     pub fn reset(&self) {
         self.champion_id.store(0, Ordering::Relaxed);
+        self.picked.store(false, Ordering::Relaxed);
         self.subset_champion_checked.store(false, Ordering::Relaxed);
         self.game_mode.write().unwrap().clear();
         debug!("HelperContext reset");
