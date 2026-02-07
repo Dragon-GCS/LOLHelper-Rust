@@ -50,6 +50,13 @@ impl LcuClient {
         if *CONTEXT.game_phase.read().unwrap() == data.phase {
             return Ok(());
         }
+        info!("当前客户端状态：{:?}", &data.phase);
+        if !data.map.game_mode.is_empty()
+            && data.map.game_mode != *CONTEXT.game_mode.read().unwrap()
+        {
+            info!("当前游戏模式: {}", &data.map.game_mode);
+        }
+
         match &data.phase {
             GamePhase::Lobby | GamePhase::None => {
                 CONTEXT.reset();
@@ -57,14 +64,12 @@ impl LcuClient {
             GamePhase::Matchmaking if CONTEXT.accepted.load(Ordering::Relaxed) => {
                 CONTEXT.accepted.store(false, Ordering::Relaxed);
             }
+            GamePhase::ReadyCheck => {
+                self.auto_accept().await;
+            }
             _ => {}
         }
-        info!("当前客户端状态：{:?}", &data.phase);
-        if !data.map.game_mode.is_empty()
-            && data.map.game_mode != *CONTEXT.game_mode.read().unwrap()
-        {
-            info!("当前游戏模式: {}", &data.map.game_mode);
-        }
+
         *CONTEXT.game_phase.write().unwrap() = data.phase;
         *CONTEXT.game_mode.write().unwrap() = data.map.game_mode;
         Ok(())

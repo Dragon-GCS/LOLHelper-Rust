@@ -1,8 +1,6 @@
-use std::sync::atomic::Ordering;
-
 use crate::Result;
 
-use crate::{CONTEXT, LcuClient};
+use crate::LcuClient;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -29,18 +27,6 @@ pub struct MatchMakingReadyCheck {
 }
 
 impl LcuClient {
-    pub(crate) async fn handle_matchmaking_ready_check_event(
-        &self,
-        data: Option<MatchMakingReadyCheck>,
-    ) -> Result<()> {
-        if !CONTEXT.accepted.load(Ordering::Relaxed)
-            && data.is_some_and(|data| matches!(data.player_response, MatchReadyResponse::None))
-        {
-            self.auto_accept().await;
-        }
-        Ok(())
-    }
-
     pub(crate) async fn handle_lobby_matchmaking_event(
         &self,
         _data: Option<MatchMaking>,

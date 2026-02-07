@@ -98,10 +98,6 @@ impl LcuClient {
                 _event_type: _,
                 data,
             } => self.handle_game_flow_event(data).await?,
-            Event::MatchmakingReadyCheck {
-                _event_type: _,
-                data,
-            } => self.handle_matchmaking_ready_check_event(data).await?,
             Event::LobbyTeamBuilderMatchmaking {
                 _event_type: _,
                 data,

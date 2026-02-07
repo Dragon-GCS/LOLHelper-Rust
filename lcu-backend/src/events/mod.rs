@@ -10,15 +10,14 @@ use super::events::{
     champ_select::ChampSelectData,
     chat::{ChatConversation, chat_conversation_deserializer},
     game_flow::GameFlowSession,
-    matchmaking::{MatchMaking, MatchMakingReadyCheck},
+    matchmaking::MatchMaking,
 };
 
 #[cfg(feature = "debug_events")]
 pub(crate) const SUBSCRIBED_EVENT: [&str; 1] = ["OnJsonApiEvent"];
 #[cfg(not(feature = "debug_events"))]
-pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
+pub(crate) const SUBSCRIBED_EVENT: [&str; 4] = [
     "OnJsonApiEvent_lol-gameflow_v1_session",
-    "OnJsonApiEvent_lol-matchmaking_v1_ready-check",
     "OnJsonApiEvent_lol-lobby-team-builder_v1_matchmaking",
     "OnJsonApiEvent_lol-champ-select_v1_session",
     "OnJsonApiEvent_lol-chat_v1_conversations",
@@ -39,12 +38,6 @@ pub enum Event {
         #[serde(rename = "eventType")]
         _event_type: EventType,
         data: GameFlowSession,
-    },
-    #[serde(rename = "/lol-matchmaking/v1/ready-check")]
-    MatchmakingReadyCheck {
-        #[serde(rename = "eventType")]
-        _event_type: EventType,
-        data: Option<MatchMakingReadyCheck>,
     },
     #[serde(rename = "/lol-lobby-team-builder/v1/matchmaking")]
     LobbyTeamBuilderMatchmaking {
