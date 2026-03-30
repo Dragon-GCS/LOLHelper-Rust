@@ -8,6 +8,8 @@ pub enum LcuError {
     ClientNotFound,
     #[error("Failed to load LCU commands")]
     ClientCMDLineFailed,
+    #[error("Lcu Client Exit")]
+    ClientExit,
     #[error("Request failed: {0}")]
     RequestFailed(#[from] reqwest::Error),
     #[error("Response error: {0}")]

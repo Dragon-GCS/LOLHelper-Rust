@@ -2,6 +2,7 @@ pub mod champ_select;
 pub mod chat;
 pub mod game_flow;
 pub mod matchmaking;
+pub mod process_control;
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -11,16 +12,18 @@ use super::events::{
     chat::{ChatConversation, chat_conversation_deserializer},
     game_flow::GameFlowSession,
     matchmaking::MatchMaking,
+    process_control::ProcessStatus,
 };
 
 #[cfg(feature = "debug_events")]
 pub(crate) const SUBSCRIBED_EVENT: [&str; 1] = ["OnJsonApiEvent"];
 #[cfg(not(feature = "debug_events"))]
-pub(crate) const SUBSCRIBED_EVENT: [&str; 4] = [
+pub(crate) const SUBSCRIBED_EVENT: [&str; 5] = [
     "OnJsonApiEvent_lol-gameflow_v1_session",
     "OnJsonApiEvent_lol-lobby-team-builder_v1_matchmaking",
     "OnJsonApiEvent_lol-champ-select_v1_session",
     "OnJsonApiEvent_lol-chat_v1_conversations",
+    "OnJsonApiEvent_process-control_v1_process",
 ];
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -57,6 +60,8 @@ pub enum Event {
         event_type: EventType,
         data: u16, // ChampionId
     },
+    #[serde(rename = "/process-control/v1/process")]
+    ProcessControl { data: ProcessStatus },
     #[serde(deserialize_with = "chat_conversation_deserializer")]
     #[serde(untagged)]
     ChatConversation(ChatConversation),

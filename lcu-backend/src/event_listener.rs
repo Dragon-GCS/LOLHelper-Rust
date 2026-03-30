@@ -68,14 +68,13 @@ pub async fn start_event_listener(
                 let handler = lcu.clone();
                 if let Message::Text(text) = message {
                     // tokio::spawn(async move {
-                    handler
-                        .read()
-                        .await
-                        .handle_message(text)
-                        .await
-                        .unwrap_or_else(|e| {
-                            error!("处理消息失败: {e}");
-                        });
+                    if let Err(e) = handler.read().await.handle_message(text).await {
+                        if matches!(e, crate::LcuError::ClientExit) {
+                            info!("客户端已退出");
+                            break;
+                        }
+                        error!("处理消息失败: {e}");
+                    }
                     // });
                 }
             }

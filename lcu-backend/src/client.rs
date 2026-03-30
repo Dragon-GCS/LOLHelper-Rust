@@ -110,6 +110,7 @@ impl LcuClient {
             Event::CurrentChampion { event_type, data } => {
                 self.handle_current_champion_event(event_type, data).await?
             }
+            Event::ProcessControl { data } => self.handle_process_control_event(data).await?,
             Event::Other(_event) => {
                 #[cfg(feature = "debug_events")]
                 debug!("Received an unhandled event: {_event}");
