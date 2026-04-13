@@ -1,4 +1,8 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::{
+    io,
+    process::Command,
+    sync::{Arc, atomic::Ordering},
+};
 
 use eframe::App;
 use eframe::egui::{
@@ -6,6 +10,7 @@ use eframe::egui::{
     Id, Label, Layout, Modal, ScrollArea, Separator, Vec2, Widget,
 };
 use log::error;
+use rfd::FileDialog;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
@@ -29,6 +34,8 @@ pub struct MyApp {
     modal_open: bool,
     // 搜索关键词
     search_text: String,
+    // 游戏客户端路径
+    game_client_path: String,
 }
 
 /// 安全地在Vec之间移动元素的宏
@@ -100,6 +107,10 @@ impl App for MyApp {
             "auto_send_analysis",
             serde_json::to_string(&CONTEXT.auto_send_analysis.load(Ordering::Relaxed)).unwrap(),
         );
+        storage.set_string(
+            "game_client_path",
+            serde_json::to_string(&self.game_client_path).unwrap(),
+        );
     }
 }
 
@@ -112,6 +123,21 @@ struct ChampionPickState {
 }
 
 impl MyApp {
+    fn launch_game_client(path: &str) -> io::Result<()> {
+        let escaped_path = path.replace('"', "\"\"");
+        let script = format!("Start-Process -FilePath \"{}\" -Verb RunAs", escaped_path);
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
+            .spawn()
+            .map(|_| ())
+    }
+
     pub fn new(cc: &eframe::CreationContext) -> Self {
         let mut fonts = FontDefinitions::default();
         fonts.font_data.insert(
@@ -158,6 +184,15 @@ impl MyApp {
                     .unwrap_or_default();
         };
 
+        let game_client_path = if let Some(storage) = cc.storage {
+            serde_json::from_str::<String>(
+                &storage.get_string("game_client_path").unwrap_or_default(),
+            )
+            .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
         Self {
             rt: tokio::runtime::Runtime::new().unwrap(),
             client: Arc::new(RwLock::new(LcuClient::default())),
@@ -165,6 +200,7 @@ impl MyApp {
             champion_pick_window_open: false,
             modal_open: false,
             search_text: String::new(),
+            game_client_path,
         }
     }
 
@@ -224,6 +260,8 @@ impl MyApp {
         Separator::default().spacing(SEPARATOR_SPACING).ui(ui);
 
         ui.vertical(|ui| {
+            ui.label(format!("客户端路径: {}", self.game_client_path.trim()));
+            ui.add_space(FRAME_MARGIN);
             let me = CONTEXT.me.read().unwrap();
             ui.label(format!("名称: {}", me.game_name));
             ui.add_space(FRAME_MARGIN);
@@ -239,6 +277,28 @@ impl MyApp {
             Layout::bottom_up(Align::Center).with_cross_justify(true),
             |ui| {
                 ui.add_space(BUTTON_SPACING);
+
+                let launch_enabled = !self.game_client_path.trim().is_empty();
+                if ui
+                    .add_enabled(launch_enabled, egui::Button::new("启动游戏"))
+                    .clicked()
+                {
+                    let launch_path = self.game_client_path.trim();
+                    if let Err(e) = Self::launch_game_client(launch_path) {
+                        error!("启动游戏失败: {e}");
+                    }
+                }
+
+                if ui.button("选择客户端路径").clicked() {
+                    let mut dialog = FileDialog::new().set_title("选择游戏客户端");
+                    #[cfg(target_os = "windows")]
+                    {
+                        dialog = dialog.add_filter("可执行文件", &["exe"]);
+                    }
+                    if let Some(path) = dialog.pick_file() {
+                        self.game_client_path = path.display().to_string();
+                    }
+                }
 
                 // 开始/停止按钮
                 let button_text = if CONTEXT.listening.load(Ordering::Relaxed) {

@@ -1,5 +1,5 @@
 use crate::Result;
-use log::{debug, error, info};
+use log::{error, info};
 
 use crate::{CONTEXT, LcuClient, context::Summoner};
 
@@ -14,10 +14,6 @@ impl LcuClient {
             return Ok(());
         }
         let data = data.unwrap();
-        if data.puuid == CONTEXT.me.read().unwrap().puuid {
-            debug!("玩家信息未变更，跳过更新");
-            return Ok(());
-        }
         info!("当前玩家信息: {data:?}");
         *CONTEXT.me.write().unwrap() = data;
         Ok(())
